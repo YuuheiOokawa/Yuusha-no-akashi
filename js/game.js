@@ -19,7 +19,7 @@ const state = {
     storyEnded: false, superbossDefeated: false,
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
-    killCounts: {}, bestiary: {},
+    killCounts: {}, bestiary: {}, visitedMaps: {},
   },
   dialogue: null,
   confirm: null,
@@ -104,6 +104,16 @@ function doWarp(dest) {
   state.player.x = dest.x;
   state.player.y = dest.y;
   state.player.dir = dest.dir;
+  maybeShowFirstVisitHint(dest.map);
+}
+
+// マップに初めて足を踏み入れたときだけ、一言ナビを表示する
+function maybeShowFirstVisitHint(mapId) {
+  if (state.flags.visitedMaps[mapId]) return;
+  state.flags.visitedMaps[mapId] = true;
+  const hint = MAP_FIRST_VISIT_HINTS[mapId];
+  if (!hint) return;
+  showDialogue(hint, () => { state.screen = 'FIELD'; });
 }
 
 function openChest(chest) {
@@ -294,6 +304,8 @@ function battleCommandFlee() {
 
 function closeBattle() {
   const lost = state.battle && state.battle.turn === 'lost';
+  const won = state.battle && state.battle.turn === 'won';
+  const scripted = state.battle && state.battle.scripted;
   state.battle = null;
   if (lost) {
     const p = state.player;
@@ -303,6 +315,14 @@ function closeBattle() {
     p.map = 'town'; p.x = 7; p.y = 9; p.dir = 'up';
     state.screen = 'FIELD';
     showDialogue(['気を失っていたようだ……', '村の人に助けられ、村に運ばれた。', '所持金の半分を失ってしまった。'], () => { state.screen = 'FIELD'; });
+    return;
+  }
+  if (won && scripted === 'guardian') {
+    showDialogue(['聖剣が黄金の光を放っている……。', 'この力があれば、竜の洞窟の結界を破れるはずだ。', 'もう一度、洞窟を目指そう。'], () => { state.screen = 'FIELD'; });
+    return;
+  }
+  if (won && scripted === 'superboss') {
+    showDialogue(['暁光の剣を手に入れた……まさに夜明けの如き輝きだ。', '試練の塔に、もう思い残すことはなさそうだ。'], () => { state.screen = 'FIELD'; });
     return;
   }
   state.screen = 'FIELD';

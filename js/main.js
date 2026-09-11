@@ -154,7 +154,7 @@ function defaultFlags() {
     storyEnded: false, superbossDefeated: false,
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
-    killCounts: {}, bestiary: {},
+    killCounts: {}, bestiary: {}, visitedMaps: {},
   };
 }
 
@@ -163,6 +163,7 @@ function startNewGame(slot) {
   state.flags = defaultFlags();
   state.currentSlot = slot;
   state.screen = 'FIELD';
+  showDialogue(OPENING_STORY, () => { state.screen = 'FIELD'; });
 }
 
 function continueGame(slot) {
@@ -496,6 +497,18 @@ function drawFieldScene() {
   drawText(CANVAS_W - 10, 8, map.name, { align: 'right', font: '14px', color: '#fff' });
   drawHud();
   drawMinimap(map, state.player.x, state.player.y);
+  drawNavBanner();
+}
+
+function drawNavBanner() {
+  const y = 132, h = 24;
+  const text = mainQuestStageText(state);
+  ctx.fillStyle = 'rgba(8,14,36,0.82)';
+  ctx.fillRect(0, y, CANVAS_W, h);
+  ctx.strokeStyle = 'rgba(255,213,74,0.45)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, y + 0.5, CANVAS_W - 1, h - 1);
+  drawText(CANVAS_W / 2, y + 5, '▶ ' + text, { align: 'center', font: '13px', color: '#ffd54a' });
 }
 
 function drawMinimap(map, px, py) {

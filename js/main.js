@@ -494,14 +494,16 @@ function drawFieldScene() {
     drawGlyphSprite(vx * TILE, vy * TILE, '勇', '#3a7fd4', Math.sin(state.frame * 0.15) * 2);
   }
 
-  drawText(CANVAS_W - 10, 8, map.name, { align: 'right', font: '14px', color: '#fff' });
+  drawNavBanner();
+  drawText(CANVAS_W - 10, TOP_UI_OFFSET + 8, map.name, { align: 'right', font: '14px', color: '#fff' });
   drawHud();
   drawMinimap(map, state.player.x, state.player.y);
-  drawNavBanner();
 }
 
+const TOP_UI_OFFSET = 28;
+
 function drawNavBanner() {
-  const y = 132, h = 24;
+  const y = 0, h = 24;
   const text = mainQuestStageText(state);
   ctx.fillStyle = 'rgba(8,14,36,0.82)';
   ctx.fillRect(0, y, CANVAS_W, h);
@@ -515,7 +517,7 @@ function drawMinimap(map, px, py) {
   const grid = map.grid;
   const w = grid[0].length, h = grid.length;
   const boxW = 130, boxH = 100;
-  const boxX = CANVAS_W - boxW - 8, boxY = 26;
+  const boxX = CANVAS_W - boxW - 8, boxY = TOP_UI_OFFSET + 26;
   const pad = 8;
   const cell = Math.min((boxW - pad * 2) / w, (boxH - pad * 2) / h);
   drawPanel(boxX, boxY, boxW, boxH);
@@ -534,11 +536,12 @@ function drawMinimap(map, px, py) {
 
 function drawHud() {
   const p = state.player;
-  drawPanel(8, 8, 220, 64);
-  drawText(20, 16, `${p.name}  Lv${p.level}`, { font: '14px' });
-  drawText(20, 34, `HP ${p.hp}/${p.maxHp}`, { font: '13px' });
-  drawText(120, 34, `MP ${p.mp}/${p.maxMp}`, { font: '13px' });
-  drawText(20, 52, `G ${p.gold}`, { font: '13px' });
+  const y = TOP_UI_OFFSET + 8;
+  drawPanel(8, y, 220, 64);
+  drawText(20, y + 8, `${p.name}  Lv${p.level}`, { font: '14px' });
+  drawText(20, y + 26, `HP ${p.hp}/${p.maxHp}`, { font: '13px' });
+  drawText(120, y + 26, `MP ${p.mp}/${p.maxMp}`, { font: '13px' });
+  drawText(20, y + 44, `G ${p.gold}`, { font: '13px' });
 }
 
 function drawDialogueBox() {

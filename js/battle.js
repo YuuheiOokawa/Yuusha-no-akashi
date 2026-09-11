@@ -4,6 +4,10 @@
 
 function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
+const CRIT_CHANCE = 0.08;
+const CRIT_MULT = 1.75;
+function rollCrit() { return Math.random() < CRIT_CHANCE; }
+
 function createBattle(monsterId, isBoss) {
   const src = MONSTERS[monsterId];
   return {
@@ -19,10 +23,16 @@ function createBattle(monsterId, isBoss) {
     shake: 0,
     flashEnemy: 0,
     flashPlayer: 0,
-    scripted: null, // 'guardian' | 'dragon' | null(通常/ミミック戦)
+    popups: [], // { target:'enemy'|'player', amount, crit, heal, life }
+    scripted: null, // 'guardian' | 'dragon' | 'superboss' | null(通常/ミミック戦)
     playerStatus: null, // { type: 'poison', turns }
     monsterStatus: null, // { type: 'poison'|'sleep', turns }
   };
+}
+
+function pushPopup(battle, target, amount, opts) {
+  opts = opts || {};
+  battle.popups.push({ target, amount, crit: !!opts.crit, heal: !!opts.heal, life: 40 });
 }
 
 function pushLog(battle, msg) {
@@ -43,10 +53,14 @@ function spellDamage(power) {
 // プレイヤーの通常攻撃
 function playerAttack(state, battle) {
   const p = state.player;
-  const dmg = physicalDamage(playerAtk(p), battle.monster.def);
+  const crit = rollCrit();
+  let dmg = physicalDamage(playerAtk(p), battle.monster.def);
+  if (crit) dmg = Math.round(dmg * CRIT_MULT);
   battle.monster.hp = Math.max(0, battle.monster.hp - dmg);
   battle.flashEnemy = 6;
-  pushLog(battle, `${p.name}のこうげき！ ${battle.monster.name}に${dmg}のダメージ！`);
+  battle.shake = crit ? 10 : 0;
+  pushPopup(battle, 'enemy', dmg, { crit });
+  pushLog(battle, `${p.name}のこうげき！${crit ? ' 会心の一撃！' : ''} ${battle.monster.name}に${dmg}のダメージ！`);
 }
 
 function playerCastSpell(state, battle, spellId) {
@@ -65,11 +79,13 @@ function playerCastSpell(state, battle, spellId) {
     dmg = Math.max(1, dmg - Math.floor(battle.monster.def * 0.3));
     battle.monster.hp = Math.max(0, battle.monster.hp - dmg);
     battle.flashEnemy = 6;
+    pushPopup(battle, 'enemy', dmg, {});
     const resisted = spell.element && monsterSrc.resist && monsterSrc.resist[spell.element];
     pushLog(battle, `${p.name}は${spell.name}を唱えた！ ${dmg}のダメージ！${resisted ? '(手ごたえが薄い……)' : ''}`);
   } else if (spell.kind === 'heal') {
     const heal = spellDamage(spell.power);
     p.hp = Math.min(p.maxHp, p.hp + heal);
+    pushPopup(battle, 'player', heal, { heal: true });
     pushLog(battle, `${p.name}は${spell.name}を唱えた！ HPが${heal}回復！`);
   } else if (spell.kind === 'poison') {
     if (immune) {
@@ -119,10 +135,14 @@ function playerUseItem(state, battle, itemId) {
 // モンスターの通常攻撃(毒付与つき)
 function monsterAttack(state, battle) {
   const p = state.player;
-  const dmg = physicalDamage(battle.monster.atk, playerDef(p));
+  const crit = rollCrit();
+  let dmg = physicalDamage(battle.monster.atk, playerDef(p));
+  if (crit) dmg = Math.round(dmg * CRIT_MULT);
   p.hp = Math.max(0, p.hp - dmg);
   battle.flashPlayer = 6;
-  pushLog(battle, `${battle.monster.name}のこうげき！ ${dmg}のダメージを受けた！`);
+  if (crit) battle.shake = 10;
+  pushPopup(battle, 'player', dmg, { crit });
+  pushLog(battle, `${battle.monster.name}のこうげき！${crit ? ' 会心の一撃！' : ''} ${dmg}のダメージを受けた！`);
   const src = MONSTERS[battle.monster.id];
   if (src.poisonChance && !battle.playerStatus && Math.random() < src.poisonChance) {
     battle.playerStatus = { type: 'poison', turns: 3 };
@@ -152,6 +172,7 @@ function applyStatusTicks(state, battle) {
   if (battle.monsterStatus && battle.monsterStatus.type === 'poison' && m.hp > 0) {
     const dmg = Math.max(1, Math.floor(m.maxHp / 10));
     m.hp = Math.max(0, m.hp - dmg);
+    pushPopup(battle, 'enemy', dmg, {});
     pushLog(battle, `${m.name}は毒でさらに${dmg}のダメージ！`);
     battle.monsterStatus.turns--;
     if (battle.monsterStatus.turns <= 0) battle.monsterStatus = null;
@@ -159,6 +180,7 @@ function applyStatusTicks(state, battle) {
   if (battle.playerStatus && battle.playerStatus.type === 'poison' && p.hp > 0) {
     const dmg = Math.max(1, Math.floor(p.maxHp / 12));
     p.hp = Math.max(0, p.hp - dmg);
+    pushPopup(battle, 'player', dmg, {});
     pushLog(battle, `${p.name}は毒で${dmg}のダメージを受けた！`);
     battle.playerStatus.turns--;
     if (battle.playerStatus.turns <= 0) battle.playerStatus = null;
@@ -172,7 +194,8 @@ function tryFlee(battle) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    rand, createBattle, pushLog, physicalDamage, spellDamage, playerAttack, playerCastSpell, playerUseItem,
+    rand, createBattle, pushLog, pushPopup, physicalDamage, spellDamage, rollCrit,
+    playerAttack, playerCastSpell, playerUseItem,
     monsterAttack, monsterTakeTurn, applyStatusTicks, tryFlee,
   };
 }

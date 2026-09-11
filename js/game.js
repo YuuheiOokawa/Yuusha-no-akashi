@@ -2,25 +2,34 @@
 // game.js - ゲーム全体の状態管理・入力・描画
 // ============================================================
 
-const SAVE_KEY = 'yuusha_no_akashi_save_v1';
+const SAVE_KEY_V1 = 'yuusha_no_akashi_save_v1'; // 旧・単一スロット形式(移行元)
+const SAVE_KEY_PREFIX = 'yuusha_no_akashi_save_v2_slot';
+const SLOT_COUNT = 3;
 
 const state = {
   screen: 'TITLE',
   titleCursor: 0,
   hasSave: false,
   player: null,
+  currentSlot: 0,
   flags: {
     questAccepted: false, bossDefeated: false, chestsOpened: [],
     hasHolySword: false, guardianDefeated: false,
     dogQuestActive: false, dogFound: false, dogQuestDone: false,
+    storyEnded: false, superbossDefeated: false,
+    wolfQuestActive: false, wolfQuestDone: false,
+    locketQuestActive: false, locketFound: false, locketQuestDone: false,
+    killCounts: {}, bestiary: {},
   },
   dialogue: null,
   confirm: null,
   menu: null,
   shop: null,
+  slotSelect: null,
   battle: null,
   frame: 0,
   lastMoveAt: 0,
+  endingExtraLines: [],
 };
 
 // ------------------------------------------------------------
@@ -102,6 +111,7 @@ function openChest(chest) {
   if (chest.mimic) {
     showDialogue(['宝箱を開けようとした瞬間……', 'ミミックだ！ 気をつけろ！'], () => {
       state.battle = createBattle('mimic', false);
+      state.flags.bestiary.mimic = true;
       state.battle.log.push('ミミックが襲いかかってきた！');
       state.battleMenu = { mode: 'main', cursor: 0 };
       state.screen = 'BATTLE';
@@ -125,12 +135,19 @@ function openChest(chest) {
 }
 
 function interactNpc(npc) {
+  if (npc.id === 'elder' && state.flags.bossDefeated && !state.flags.storyEnded) {
+    showConfirm(['ここで物語を終えますか？', '（いつでも話しかけ直せます）'], (yes) => {
+      if (yes) { triggerEnding(); }
+      else { showDialogue(npc.lines(state), () => { state.screen = 'FIELD'; }); }
+    });
+    return;
+  }
   if (npc.inn) {
     showConfirm([`${state.player.name}は宿屋に泊まりますか？`, '(10ゴールド)'], (yes) => {
       if (yes && state.player.gold >= 10) {
         state.player.gold -= 10;
         fullHeal(state.player);
-        saveGame();
+        saveGame(state.currentSlot);
         showDialogue(['ぐっすり眠った！ HPとMPが全回復した。', '冒険の書にきろくしました。'], () => { state.screen = 'FIELD'; });
       } else if (yes) {
         showDialogue(['ゴールドが足りないようだ。'], () => { state.screen = 'FIELD'; });
@@ -153,6 +170,7 @@ function interactNpc(npc) {
 function startScriptedBattle(entry) {
   showDialogue(entry.introLines, () => {
     state.battle = createBattle(entry.monster, true);
+    state.flags.bestiary[entry.monster] = true;
     state.battle.scripted = entry.id;
     state.battle.log.push(`${state.battle.monster.name}があらわれた！`);
     state.battleMenu = { mode: 'main', cursor: 0 };
@@ -173,6 +191,7 @@ function pickWeighted(table) {
 function triggerRandomEncounter(table) {
   const monsterId = pickWeighted(table);
   state.battle = createBattle(monsterId, false);
+  state.flags.bestiary[monsterId] = true;
   state.battle.log.push(`${state.battle.monster.name}があらわれた！`);
   state.battleMenu = { mode: 'main', cursor: 0 };
   state.screen = 'BATTLE';
@@ -186,24 +205,31 @@ function endBattleVictory() {
   const p = state.player;
   pushLog(b, `${b.monster.name}をたおした！`);
 
-  if (b.scripted === 'dragon') {
-    state.flags.bossDefeated = true;
-    b.turn = 'won';
-    return;
+  if (!b.scripted) {
+    state.flags.killCounts[b.monster.id] = (state.flags.killCounts[b.monster.id] || 0) + 1;
   }
 
-  p.gold += b.monster.gold;
-  pushLog(b, `${b.monster.gold}ゴールドを手に入れた！`);
-  const gained = gainExp(p, b.monster.exp);
-  pushLog(b, `${b.monster.exp}の経験値を手に入れた！`);
-  if (gained.levels > 0) pushLog(b, `レベルが${gained.levels}あがった！ Lv.${p.level}`);
-  gained.newSpells.forEach((sid) => pushLog(b, `呪文『${SPELLS[sid].name}』を覚えた！`));
+  if (b.scripted === 'dragon') {
+    state.flags.bossDefeated = true;
+    pushLog(b, '村を脅かしていた元凶を打ち倒した……！');
+  } else {
+    p.gold += b.monster.gold;
+    pushLog(b, `${b.monster.gold}ゴールドを手に入れた！`);
+    const gained = gainExp(p, b.monster.exp);
+    pushLog(b, `${b.monster.exp}の経験値を手に入れた！`);
+    if (gained.levels > 0) pushLog(b, `レベルが${gained.levels}あがった！ Lv.${p.level}`);
+    gained.newSpells.forEach((sid) => pushLog(b, `呪文『${SPELLS[sid].name}』を覚えた！`));
 
-  if (b.scripted === 'guardian') {
-    state.flags.guardianDefeated = true;
-    state.flags.hasHolySword = true;
-    addOwnedEquipment(p, 'sword_holy');
-    pushLog(b, '古の聖剣「光の剣」を手に入れた！');
+    if (b.scripted === 'guardian') {
+      state.flags.guardianDefeated = true;
+      state.flags.hasHolySword = true;
+      addOwnedEquipment(p, 'sword_holy');
+      pushLog(b, '古の聖剣「光の剣」を手に入れた！');
+    } else if (b.scripted === 'superboss') {
+      state.flags.superbossDefeated = true;
+      addOwnedEquipment(p, 'sword_dawn');
+      pushLog(b, '暁光の剣を手に入れた！');
+    }
   }
   b.turn = 'won';
 }
@@ -267,8 +293,6 @@ function battleCommandFlee() {
 }
 
 function closeBattle() {
-  const scripted = state.battle && state.battle.scripted;
-  const won = state.battle && state.battle.turn === 'won';
   const lost = state.battle && state.battle.turn === 'lost';
   state.battle = null;
   if (lost) {
@@ -281,11 +305,27 @@ function closeBattle() {
     showDialogue(['気を失っていたようだ……', '村の人に助けられ、村に運ばれた。', '所持金の半分を失ってしまった。'], () => { state.screen = 'FIELD'; });
     return;
   }
-  if (won && scripted === 'dragon') {
-    state.screen = 'ENDING';
-    return;
-  }
   state.screen = 'FIELD';
+}
+
+// ------------------------------------------------------------
+// エンディング
+// ------------------------------------------------------------
+function triggerEnding() {
+  state.flags.storyEnded = true;
+  const lines = [];
+  if (state.flags.superbossDefeated) {
+    lines.push('試練の塔に巣食っていた大魔導士ゼノンをも打ち倒し、');
+    lines.push('勇者の名は伝説として語り継がれることとなった。');
+  }
+  const doneQuests = SIDE_QUESTS.filter((q) => state.flags[q.doneFlag]);
+  if (doneQuests.length === SIDE_QUESTS.length) {
+    lines.push('村人たちの悩みもすべて解決し、誰もが笑顔で勇者を見送った。');
+  } else if (doneQuests.length > 0) {
+    lines.push('道中で出会った人々の悩みにも、できる限り手を貸してきた。');
+  }
+  state.endingExtraLines = lines;
+  state.screen = 'ENDING';
 }
 
 // ------------------------------------------------------------
@@ -332,21 +372,47 @@ function flashShopMsg(msg) {
 }
 
 // ------------------------------------------------------------
-// セーブ / ロード
+// セーブ / ロード (3スロット)
 // ------------------------------------------------------------
-function saveGame() {
+function slotKey(slot) { return SAVE_KEY_PREFIX + slot; }
+
+function saveGame(slot) {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ player: state.player, flags: state.flags }));
+    localStorage.setItem(slotKey(slot), JSON.stringify({ player: state.player, flags: state.flags }));
   } catch (e) { /* localStorage unavailable */ }
 }
-function loadGame() {
+function loadGame(slot) {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(slotKey(slot));
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (e) { return null; }
 }
-function hasSaveData() { return !!loadGame(); }
+function listSaveSlots() {
+  const slots = [];
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    const data = loadGame(i);
+    const map = data && MAPS[data.player.map];
+    slots.push({
+      slot: i,
+      summary: data ? { name: data.player.name, level: data.player.level, mapName: map ? map.name : '' } : null,
+    });
+  }
+  return slots;
+}
+function hasSaveData() {
+  for (let i = 0; i < SLOT_COUNT; i++) { if (loadGame(i)) return true; }
+  return false;
+}
+// 旧・単一スロット形式(v1)からの非破壊移行。スロット0が空の場合のみ、旧データをコピーする(旧キーは残す)
+function migrateLegacySave() {
+  try {
+    if (loadGame(0)) return;
+    const raw = localStorage.getItem(SAVE_KEY_V1);
+    if (!raw) return;
+    localStorage.setItem(slotKey(0), raw);
+  } catch (e) { /* localStorage unavailable */ }
+}
 
 if (typeof module !== 'undefined') {
   module.exports = {
@@ -355,6 +421,7 @@ if (typeof module !== 'undefined') {
     endBattleVictory, endBattleDefeat, resolveMonsterTurnIfAlive,
     battleCommandAttack, battleCommandSpell, battleCommandItem, battleCommandFlee, closeBattle,
     openShop, shopBuyList, shopSellList, itemDef, shopBuy, shopSell,
-    saveGame, loadGame, hasSaveData, showDialogue, showConfirm,
+    saveGame, loadGame, listSaveSlots, hasSaveData, migrateLegacySave,
+    triggerEnding, showDialogue, showConfirm,
   };
 }

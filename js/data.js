@@ -31,6 +31,16 @@ function townStage(state) {
   if (state.flags.hasHolySword) return 1;
   return 0;
 }
+
+// メインクエストの現在の目標をクエストログ用に一行で表す
+function mainQuestStageText(state) {
+  const f = state.flags;
+  if (f.storyEnded) return '勇者の物語は幕を閉じた。';
+  if (f.bossDefeated) return '魔竜王を倒した。ルミナ村の長老に話しかけると物語を終えられる。';
+  if (f.hasHolySword) return '聖剣を手に、竜の洞窟の奥で魔竜王ガロズに挑もう。';
+  if (f.questAccepted) return 'フェルンの城下町で王に会い、聖剣のありかを聞こう。';
+  return 'ルミナ村の長老に話しかけよう。';
+}
 function setTiles(grid, coords, tile) {
   coords.forEach(([x, y]) => {
     if (grid[y] && grid[y][x] !== undefined) grid[y][x] = tile;
@@ -102,6 +112,7 @@ setRect(caveGrid, 14, 5, 18, 8, TILES.FLOOR); // 東の小部屋
 setRect(caveGrid, 12, 6, 15, 7, TILES.FLOOR); // 接続通路
 setRect(caveGrid, 10, 2, 12, 6, TILES.FLOOR); // 最深部への通路
 setRect(caveGrid, 7, 1, 15, 4, TILES.FLOOR); // ボスの間
+setTiles(caveGrid, [[11, 1]], TILES.DOOR); // 魔竜王撃破後、試練の塔への道が開ける
 
 // ============================================================
 // フェルンの城下町
@@ -142,6 +153,17 @@ setRect(ruinsGrid, 14, 6, 18, 9, TILES.FLOOR); // 東の小部屋(ミミック)
 setRect(ruinsGrid, 12, 7, 14, 8, TILES.FLOOR); // 接続通路
 setRect(ruinsGrid, 10, 3, 12, 7, TILES.FLOOR); // 最深部への通路
 setRect(ruinsGrid, 6, 1, 16, 4, TILES.FLOOR); // ガーディアンの間
+
+// ============================================================
+// 試練の塔 (隠しダンジョン・魔竜王撃破後にのみ到達可能)
+// ============================================================
+const towerGrid = buildMap(16, 20, TILES.WALL);
+setRect(towerGrid, 6, 16, 9, 18, TILES.FLOOR); // 入口の間
+setTiles(towerGrid, [[7, 18], [8, 18]], TILES.DOOR); // 洞窟へ戻る道
+setRect(towerGrid, 7, 10, 8, 16, TILES.FLOOR); // 中層への階段
+setRect(towerGrid, 4, 7, 11, 10, TILES.FLOOR); // 試練の間 (宝箱・強敵)
+setRect(towerGrid, 7, 3, 8, 7, TILES.FLOOR); // 最上階への階段
+setRect(towerGrid, 4, 1, 11, 4, TILES.FLOOR); // 最上階 (大魔導士の間)
 
 // ============================================================
 // マップ定義
@@ -200,6 +222,16 @@ const MAPS = {
     startX: 11, startY: 16, startDir: 'up',
     bgColor: '#2a2418',
   },
+  tower: {
+    id: 'tower', name: '試練の塔', grid: towerGrid,
+    encounter: { rate: 0.11, table: [
+      { id: 'tower_wraith', weight: 4 },
+      { id: 'iron_golem', weight: 3 },
+      { id: 'arcane_sentinel', weight: 3 },
+    ] },
+    startX: 7, startY: 17, startDir: 'up',
+    bgColor: '#241830',
+  },
 };
 
 // ============================================================
@@ -224,6 +256,9 @@ const WARPS = {
   'field2:11:15': { map: 'ruins', x: 11, y: 16, dir: 'up' },
   'ruins:10:17': { map: 'field2', x: 10, y: 14, dir: 'down' },
   'ruins:11:17': { map: 'field2', x: 11, y: 14, dir: 'down' },
+  'cave:11:1': { map: 'tower', x: 7, y: 17, dir: 'up' },
+  'tower:7:18': { map: 'cave', x: 11, y: 2, dir: 'down' },
+  'tower:8:18': { map: 'cave', x: 11, y: 2, dir: 'down' },
 };
 
 // 竜の洞窟の入り口を封じる結界。聖剣を持たない限り通れない。
@@ -239,6 +274,8 @@ const CHESTS = [
   { id: 'chest_field1', map: 'field', x: 3, y: 5, item: null, gold: 40 },
   { id: 'chest_ruins1', map: 'ruins', x: 5, y: 11, item: 'shield_mythril', gold: 0 },
   { id: 'chest_ruins2', map: 'ruins', x: 16, y: 7, item: null, gold: 0, mimic: true },
+  { id: 'chest_tower1', map: 'tower', x: 5, y: 8, item: 'shield_aegis', gold: 0 },
+  { id: 'chest_tower2', map: 'tower', x: 10, y: 8, item: 'armor_radiant', gold: 0 },
 ];
 
 // ============================================================
@@ -252,6 +289,10 @@ const SCRIPTED_ENCOUNTERS = [
   {
     id: 'dragon', map: 'cave', x: 11, y: 2, monster: 'dragon_king', flag: 'bossDefeated',
     introLines: ['奥から強大な気配を感じる……', '魔竜王ガロズが目を覚ました！'],
+  },
+  {
+    id: 'superboss', map: 'tower', x: 7, y: 2, monster: 'archmage_zenon', flag: 'superbossDefeated',
+    introLines: ['塔の最奥、渦巻く魔力の中心に、何者かが佇んでいた。', '試練の塔の主、大魔導士ゼノンが姿を現した！'],
   },
 ];
 
@@ -393,6 +434,61 @@ const NPCS = [
     id: 'villagerD', map: 'town2', x: 16, y: 4, glyph: '住', color: '#a0e06b',
     lines() { return ['宝箱の中には、たまに化け物が潜んでいることもあるらしい……', '気をつけて。']; },
   },
+  {
+    id: 'hunter', map: 'town2', x: 5, y: 9, glyph: '猟', color: '#c98a4a',
+    lines(state) {
+      if (state.flags.wolfQuestDone) {
+        return ['おかげで平原の狼も落ち着いたよ。感謝する。'];
+      }
+      const kills = (state.flags.killCounts && state.flags.killCounts.wolf) || 0;
+      if (kills >= 5) {
+        state.flags.wolfQuestDone = true;
+        state.player.gold += 50;
+        addItem(state.player, 'item_hi_herb', 2);
+        return ['おお、はぐれ狼を5匹も討伐してくれたのか！', 'これは礼だ、受け取ってくれ。', '(50ゴールドと上級やくそうを2つ手に入れた！)'];
+      }
+      if (state.flags.wolfQuestActive) {
+        return [`まだ平原に狼が出るらしい。(討伐数: ${kills}/5)`, '引き続き頼めるか？'];
+      }
+      state.flags.wolfQuestActive = true;
+      return ['リアーナ平原にはぐれ狼が増えて困っているんだ。', '5匹ほど討伐してきてくれないか？'];
+    },
+  },
+  {
+    id: 'granny', map: 'town2', x: 16, y: 6, glyph: '婆', color: '#c0a0c0',
+    lines(state) {
+      if (state.flags.locketQuestDone) {
+        return ['ロケットは私の大切な宝物。', '本当にありがとう、勇者様。'];
+      }
+      if (state.flags.locketFound) {
+        state.flags.locketQuestDone = true;
+        addOwnedEquipment(state.player, 'locket_memory');
+        return ['まあ、これは……！ 亡き夫の形見のロケット！', '見つけてくれて本当にありがとう。', 'お礼にこのお守りを受け取っておくれ。', '(思い出のロケットを手に入れた！)'];
+      }
+      if (state.flags.locketQuestActive) {
+        return ['ロケットは囁きの森のどこかに落ちているはずなんじゃ……'];
+      }
+      state.flags.locketQuestActive = true;
+      return ['囁きの森で、大切なロケットを落としてしまってのう……', 'もし見かけたら、届けてもらえんかのう。'];
+    },
+  },
+  {
+    id: 'lostLocket', map: 'field2', x: 4, y: 8, glyph: '飾', color: '#e0c26b',
+    hidden(state) { return state.flags.locketFound; },
+    lines(state) {
+      state.flags.locketFound = true;
+      return ['(キラッ……)', '古びたロケットを見つけた！ フェルンの城下町に届けよう。'];
+    },
+  },
+];
+
+// ============================================================
+// サイドクエスト一覧 (クエストログUIが参照する)
+// ============================================================
+const SIDE_QUESTS = [
+  { id: 'dog', name: 'まいごの犬', activeFlag: 'dogQuestActive', doneFlag: 'dogQuestDone' },
+  { id: 'wolfHunt', name: '狼退治', activeFlag: 'wolfQuestActive', doneFlag: 'wolfQuestDone' },
+  { id: 'locket', name: '忘れ形見のロケット', activeFlag: 'locketQuestActive', doneFlag: 'locketQuestDone' },
 ];
 
 // ============================================================
@@ -430,6 +526,10 @@ const EQUIPMENT = {
   armor_mythril: { id: 'armor_mythril', name: 'ミスリルの鎧', type: 'armor', def: 18, price: 500 },
   ring_power: { id: 'ring_power', name: '力の指輪', type: 'accessory', atk: 6, price: 250 },
   pendant_guard: { id: 'pendant_guard', name: '守りのペンダント', type: 'accessory', def: 6, price: 220 },
+  shield_aegis: { id: 'shield_aegis', name: '神盾イージス', type: 'shield', def: 20, price: 0 },
+  armor_radiant: { id: 'armor_radiant', name: '光の鎧', type: 'armor', def: 26, price: 0 },
+  sword_dawn: { id: 'sword_dawn', name: '暁光の剣', type: 'weapon', atk: 46, price: 0 },
+  locket_memory: { id: 'locket_memory', name: '思い出のロケット', type: 'accessory', atk: 3, def: 3, price: 0 },
 };
 
 // ============================================================
@@ -481,37 +581,58 @@ const SPELLS = {
   thunder: { id: 'thunder', name: 'サンダー', mp: 5, learnLv: 9, kind: 'attack', power: 26, element: 'thunder', desc: '敵に雷のダメージ' },
   highHeal: { id: 'highHeal', name: 'ハイヒール', mp: 8, learnLv: 10, kind: 'heal', power: 65, desc: 'HPを65前後回復する' },
   blaze: { id: 'blaze', name: 'ブレイズ', mp: 7, learnLv: 12, kind: 'attack', power: 34, element: 'fire', desc: '敵に大きな炎のダメージ' },
+  holyLight: { id: 'holyLight', name: 'ホーリー', mp: 9, learnLv: 14, kind: 'attack', power: 42, element: 'holy', desc: '敵に聖なる大ダメージ' },
+  exHeal: { id: 'exHeal', name: 'エクスヒール', mp: 14, learnLv: 16, kind: 'heal', power: 120, desc: 'HPを120前後回復する' },
 };
 
 // ============================================================
 // モンスター
 // ============================================================
 const MONSTERS = {
-  slime: { id: 'slime', name: 'スライム', hp: 10, atk: 6, def: 1, exp: 4, gold: 5, glyph: 'ス', color: '#5aa9e6' },
-  slime_fat: { id: 'slime_fat', name: 'デブスライム', hp: 17, atk: 8, def: 3, exp: 9, gold: 10, glyph: 'ス', color: '#3a7fc9' },
-  wolf: { id: 'wolf', name: 'はぐれ狼', hp: 19, atk: 10, def: 3, exp: 11, gold: 9, glyph: '狼', color: '#8a7a6a' },
-  ghost: { id: 'ghost', name: 'ゴースト', hp: 23, atk: 13, def: 4, exp: 17, gold: 14, glyph: '霊', color: '#b18ae6' },
-  scorpion: { id: 'scorpion', name: 'さそり', hp: 27, atk: 15, def: 5, exp: 21, gold: 18, glyph: '蠍', color: '#e0a03a', poisonChance: 0.35 },
-  golem: { id: 'golem', name: 'ゴーレム', hp: 42, atk: 18, def: 10, exp: 42, gold: 35, glyph: '岩', color: '#7a7a7a' },
-  bat: { id: 'bat', name: 'こうもり', hp: 15, atk: 12, def: 3, exp: 13, gold: 11, glyph: '蝙', color: '#7a5a9a' },
-  thief: { id: 'thief', name: '盗賊', hp: 21, atk: 14, def: 4, exp: 16, gold: 22, glyph: '賊', color: '#9a7a4a' },
-  skeleton: { id: 'skeleton', name: 'スケルトン', hp: 30, atk: 17, def: 6, exp: 26, gold: 20, glyph: '骨', color: '#d8d8c0' },
-  dark_knight: { id: 'dark_knight', name: '黒騎士', hp: 38, atk: 21, def: 9, exp: 36, gold: 30, glyph: '騎', color: '#3a3a4a' },
-  mimic: { id: 'mimic', name: 'ミミック', hp: 34, atk: 19, def: 6, exp: 32, gold: 45, glyph: '箱', color: '#c9a227' },
+  slime: { id: 'slime', name: 'スライム', hp: 10, atk: 6, def: 1, exp: 4, gold: 5, glyph: 'ス', color: '#5aa9e6', desc: 'ぷるぷるとした低級モンスター。攻撃力は低い。' },
+  slime_fat: { id: 'slime_fat', name: 'デブスライム', hp: 17, atk: 8, def: 3, exp: 9, gold: 10, glyph: 'ス', color: '#3a7fc9', desc: 'ひとまわり大きいスライム。皮膚が厚く打たれ強い。' },
+  wolf: { id: 'wolf', name: 'はぐれ狼', hp: 19, atk: 10, def: 3, exp: 11, gold: 9, glyph: '狼', color: '#8a7a6a', desc: '群れからはぐれた狼。牙による攻撃は鋭い。' },
+  ghost: { id: 'ghost', name: 'ゴースト', hp: 23, atk: 13, def: 4, exp: 17, gold: 14, glyph: '霊', color: '#b18ae6', desc: '成仏できない霊。実体を持たずすり抜けるように動く。' },
+  scorpion: { id: 'scorpion', name: 'さそり', hp: 27, atk: 15, def: 5, exp: 21, gold: 18, glyph: '蠍', color: '#e0a03a', poisonChance: 0.35, desc: '猛毒の針を持つ大サソリ。毒攻撃に注意。' },
+  golem: { id: 'golem', name: 'ゴーレム', hp: 42, atk: 18, def: 10, exp: 42, gold: 35, glyph: '岩', color: '#7a7a7a', desc: '岩でできた巨体の番人。高い防御力を誇る。' },
+  bat: { id: 'bat', name: 'こうもり', hp: 15, atk: 12, def: 3, exp: 13, gold: 11, glyph: '蝙', color: '#7a5a9a', desc: '洞窟や森に棲む大コウモリ。素早い動きで襲いかかる。' },
+  thief: { id: 'thief', name: '盗賊', hp: 21, atk: 14, def: 4, exp: 16, gold: 22, glyph: '賊', color: '#9a7a4a', desc: '旅人を狙う盗賊。金品を狙って襲ってくる。' },
+  skeleton: { id: 'skeleton', name: 'スケルトン', hp: 30, atk: 17, def: 6, exp: 26, gold: 20, glyph: '骨', color: '#d8d8c0', desc: '古代遺跡をさまよう骸骨の戦士。' },
+  dark_knight: { id: 'dark_knight', name: '黒騎士', hp: 38, atk: 21, def: 9, exp: 36, gold: 30, glyph: '騎', color: '#3a3a4a', desc: '闇に堕ちた騎士。重厚な一撃を放つ。' },
+  mimic: { id: 'mimic', name: 'ミミック', hp: 34, atk: 19, def: 6, exp: 32, gold: 45, glyph: '箱', color: '#c9a227', desc: '宝箱に擬態する魔物。油断すると牙をむく。' },
   guardian_stone: {
     id: 'guardian_stone', name: '石の番人ガーディアン', hp: 110, atk: 23, def: 14, exp: 150, gold: 100,
     glyph: '像', color: '#8a8a9a', boss: true, statusImmune: true,
+    desc: '古代遺跡の最奥を守る石像の番人。あらゆる状態異常が効かない。',
   },
   dragon_king: {
     id: 'dragon_king', name: '魔竜王ガロズ', hp: 220, atk: 30, def: 12, exp: 0, gold: 0,
     glyph: '竜', color: '#d43a3a', boss: true, statusImmune: true, resist: { fire: 0.5 },
+    desc: '竜の洞窟に封じられていた魔竜王。炎への耐性を持つ。',
+  },
+  tower_wraith: {
+    id: 'tower_wraith', name: '塔の怨霊', hp: 45, atk: 24, def: 10, exp: 55, gold: 40,
+    glyph: '幽', color: '#4a2a6a', poisonChance: 0.2, desc: '試練の塔に彷徨う怨霊。触れた者に毒を残す。',
+  },
+  iron_golem: {
+    id: 'iron_golem', name: '鋼鉄の巨人', hp: 70, atk: 26, def: 16, exp: 70, gold: 55,
+    glyph: '鉄', color: '#5a5a6a', desc: '塔の試練が生み出した鋼鉄の巨人。',
+  },
+  arcane_sentinel: {
+    id: 'arcane_sentinel', name: '魔導番兵', hp: 50, atk: 29, def: 8, exp: 65, gold: 60,
+    glyph: '番', color: '#8a3aa0', statusImmune: true, desc: '魔力で編まれた番人。状態異常を受け付けない。',
+  },
+  archmage_zenon: {
+    id: 'archmage_zenon', name: '大魔導士ゼノン', hp: 300, atk: 34, def: 16, exp: 600, gold: 500,
+    glyph: '導', color: '#6a2a8a', boss: true, statusImmune: true, resist: { thunder: 0.4 },
+    desc: '試練の塔の最奥に君臨する大魔導士。雷への耐性を持つ。',
   },
 };
 
 if (typeof module !== 'undefined') {
   module.exports = {
     TILES, WALKABLE, ENCOUNTER_TILES, MAPS, WARPS, BARRIER_MAP, BARRIER_FLAG, CHESTS, SCRIPTED_ENCOUNTERS,
-    NPCS, SHOPS, EQUIPMENT, ITEMS, SPELLS, MONSTERS,
-    townStage, townGridForStage, TOWN_GRIDS_BY_STAGE, TOWN_BG_COLORS,
+    NPCS, SHOPS, EQUIPMENT, ITEMS, SPELLS, MONSTERS, SIDE_QUESTS,
+    townStage, townGridForStage, TOWN_GRIDS_BY_STAGE, TOWN_BG_COLORS, mainQuestStageText,
   };
 }

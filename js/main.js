@@ -2,7 +2,7 @@
 // main.js - 描画・入力・メインループ
 // ============================================================
 
-const topOptions = ['どうぐ', 'そうび', 'じゅもん', 'ステータス', 'とじる'];
+const topOptions = ['どうぐ', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', 'ステータス', 'セーブ', 'とじる'];
 const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'にげる'];
 
 // ------------------------------------------------------------
@@ -10,6 +10,7 @@ const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'にげる'];
 // ------------------------------------------------------------
 window.addEventListener('DOMContentLoaded', () => {
   initEngine();
+  migrateLegacySave();
   state.hasSave = hasSaveData();
   document.addEventListener('keydown', handleKeydown);
   requestAnimationFrame(loop);
@@ -26,6 +27,11 @@ function update() {
   if (state.battle) {
     if (state.battle.flashEnemy > 0) state.battle.flashEnemy--;
     if (state.battle.flashPlayer > 0) state.battle.flashPlayer--;
+    if (state.battle.shake > 0) state.battle.shake--;
+    if (state.battle.popups && state.battle.popups.length > 0) {
+      state.battle.popups.forEach((p) => { p.life--; });
+      state.battle.popups = state.battle.popups.filter((p) => p.life > 0);
+    }
   }
   if (state.shop && state.shop.msgTimer > 0) {
     state.shop.msgTimer--;
@@ -47,6 +53,7 @@ function handleKeydown(e) {
     case 'SHOP': shopKey(e); break;
     case 'BATTLE': battleKey(e); break;
     case 'ENDING': endingKey(e); break;
+    case 'SLOTSELECT': slotSelectKey(e); break;
   }
 }
 
@@ -57,22 +64,28 @@ function defaultFlags() {
     questAccepted: false, bossDefeated: false, chestsOpened: [],
     hasHolySword: false, guardianDefeated: false,
     dogQuestActive: false, dogFound: false, dogQuestDone: false,
+    storyEnded: false, superbossDefeated: false,
+    wolfQuestActive: false, wolfQuestDone: false,
+    locketQuestActive: false, locketFound: false, locketQuestDone: false,
+    killCounts: {}, bestiary: {},
   };
 }
 
-function startNewGame() {
+function startNewGame(slot) {
   state.player = createNewPlayer('勇者');
   state.flags = defaultFlags();
+  state.currentSlot = slot;
   state.screen = 'FIELD';
 }
 
-function continueGame() {
-  const data = loadGame();
-  if (!data) { startNewGame(); return; }
+function continueGame(slot) {
+  const data = loadGame(slot);
+  if (!data) return;
   state.player = data.player;
   if (!state.player.ownedEquipment) state.player.ownedEquipment = [state.player.weapon].filter(Boolean);
   if (state.player.accessory === undefined) state.player.accessory = null;
   state.flags = Object.assign(defaultFlags(), data.flags || {});
+  state.currentSlot = slot;
   state.screen = 'FIELD';
 }
 
@@ -82,7 +95,29 @@ function titleKey(e) {
   else if (e.key === 'ArrowDown') state.titleCursor = (state.titleCursor + 1) % opts.length;
   else if (e.key === 'Enter' || e.key === ' ') {
     const choice = opts[state.titleCursor];
-    if (choice === 'さいしょから') startNewGame(); else continueGame();
+    state.slotSelect = { mode: choice === 'さいしょから' ? 'new' : 'load', cursor: 0 };
+    state.screen = 'SLOTSELECT';
+  }
+}
+
+function slotSelectKey(e) {
+  const s = state.slotSelect;
+  const slots = listSaveSlots();
+  if (e.key === 'ArrowUp') s.cursor = (s.cursor - 1 + SLOT_COUNT) % SLOT_COUNT;
+  else if (e.key === 'ArrowDown') s.cursor = (s.cursor + 1) % SLOT_COUNT;
+  else if (e.key === 'Escape') { state.screen = 'TITLE'; state.slotSelect = null; }
+  else if (e.key === 'Enter' || e.key === ' ') {
+    const chosen = slots[s.cursor];
+    if (s.mode === 'load') {
+      if (!chosen.summary) return;
+      continueGame(s.cursor);
+    } else if (chosen.summary) {
+      showConfirm([`スロット${s.cursor + 1}には既にデータがあります。`, '上書きしますか？'], (yes) => {
+        if (yes) { startNewGame(s.cursor); } else { state.screen = 'SLOTSELECT'; }
+      });
+    } else {
+      startNewGame(s.cursor);
+    }
   }
 }
 
@@ -135,7 +170,10 @@ function menuKey(e) {
       else if (choice === 'そうび') { m.mode = 'equipSlot'; m.cursor = 0; }
       else if (choice === 'じゅもん') {
         if (state.player.spells.length > 0) { m.mode = 'spell'; m.cursor = 0; m.msg = null; }
-      } else if (choice === 'ステータス') { m.mode = 'status'; }
+      } else if (choice === 'クエスト') { m.mode = 'quest'; }
+      else if (choice === 'モンスター図鑑') { m.mode = 'bestiary'; m.cursor = 0; }
+      else if (choice === 'ステータス') { m.mode = 'status'; }
+      else if (choice === 'セーブ') { saveGame(state.currentSlot); m.msg = 'ぼうけんの書にきろくした！'; }
       else if (choice === 'とじる') { state.screen = 'FIELD'; state.menu = null; }
     } else if (e.key === 'Escape') { state.screen = 'FIELD'; state.menu = null; }
     return;
@@ -202,6 +240,17 @@ function menuKey(e) {
   }
   if (m.mode === 'status') {
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; }
+    return;
+  }
+  if (m.mode === 'quest') {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; }
+    return;
+  }
+  if (m.mode === 'bestiary') {
+    const ids = Object.keys(MONSTERS);
+    if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + ids.length) % ids.length;
+    else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % ids.length;
+    else if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; }
   }
 }
 
@@ -273,6 +322,7 @@ function endingKey(e) {
 function draw() {
   if (!ctx) return;
   if (state.screen === 'TITLE') { drawTitle(); return; }
+  if (state.screen === 'SLOTSELECT') { drawSlotSelect(); return; }
   if (state.screen === 'ENDING') { drawEnding(); return; }
   if (state.battle) drawBattleScene();
   else if (state.player) drawFieldScene();
@@ -296,6 +346,23 @@ function drawTitle() {
   if (Math.floor(state.frame / 30) % 2 === 0) {
     drawText(CANVAS_W / 2, 440, '矢印キーで選択・Enterで決定', { align: 'center', font: '13px', color: '#8899cc' });
   }
+}
+
+function drawSlotSelect() {
+  ctx.fillStyle = '#0a1428';
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  const s = state.slotSelect;
+  drawText(CANVAS_W / 2, 60, s.mode === 'new' ? 'どのスロットに はじめますか？' : 'どのスロットを つづけますか？', { align: 'center', font: 'bold 20px', color: '#ffd54a' });
+  const slots = listSaveSlots();
+  slots.forEach((slot, i) => {
+    const y = 150 + i * 80;
+    drawPanel(120, y, 400, 60);
+    const label = slot.summary
+      ? `${slot.summary.name}  Lv${slot.summary.level}  (${slot.summary.mapName})`
+      : '－ からっぽ －';
+    drawText(150, y + 20, (s.cursor === i ? '▶ ' : '　') + `スロット${i + 1}: ${label}`, { font: '16px' });
+  });
+  drawText(CANVAS_W / 2, 420, 'Enterで決定・Escでタイトルへ', { align: 'center', font: '13px', color: '#8899cc' });
 }
 
 function drawFieldScene() {
@@ -335,6 +402,28 @@ function drawFieldScene() {
 
   drawText(CANVAS_W - 10, 8, map.name, { align: 'right', font: '14px', color: '#fff' });
   drawHud();
+  drawMinimap(map, state.player.x, state.player.y);
+}
+
+function drawMinimap(map, px, py) {
+  const grid = map.grid;
+  const w = grid[0].length, h = grid.length;
+  const boxW = 130, boxH = 100;
+  const boxX = CANVAS_W - boxW - 8, boxY = 26;
+  const pad = 8;
+  const cell = Math.min((boxW - pad * 2) / w, (boxH - pad * 2) / h);
+  drawPanel(boxX, boxY, boxW, boxH);
+  const originX = boxX + pad, originY = boxY + pad;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      ctx.fillStyle = WALKABLE.has(grid[y][x]) ? '#3a3a55' : '#141420';
+      ctx.fillRect(originX + x * cell, originY + y * cell, Math.ceil(cell), Math.ceil(cell));
+    }
+  }
+  ctx.fillStyle = '#ffd54a';
+  ctx.beginPath();
+  ctx.arc(originX + px * cell + cell / 2, originY + py * cell + cell / 2, Math.max(2, cell), 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawHud() {
@@ -367,8 +456,9 @@ function drawConfirmBox() {
 function drawMenu() {
   const m = state.menu;
   if (m.mode === 'top') {
-    drawPanel(400, 20, 220, 220);
-    topOptions.forEach((opt, i) => drawText(420, 40 + i * 36, (m.cursor === i ? '▶ ' : '　') + opt, { font: '18px' }));
+    drawPanel(360, 12, 260, 320);
+    topOptions.forEach((opt, i) => drawText(380, 30 + i * 34, (m.cursor === i ? '▶ ' : '　') + opt, { font: '17px' }));
+    if (m.msg) drawText(380, 30 + topOptions.length * 34 + 6, m.msg, { font: '12px', color: '#ffd54a' });
     return;
   }
   if (m.mode === 'item') {
@@ -432,6 +522,35 @@ function drawMenu() {
     ];
     lines.forEach((l, i) => drawText(80, 40 + i * 26, l, { font: '15px' }));
     drawText(80, 352, 'Enterでもどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'quest') {
+    drawPanel(60, 20, 520, 300);
+    drawText(80, 40, 'メインクエスト', { font: '14px', color: '#ffd54a' });
+    const stageLines = wrapJapanese(mainQuestStageText(state), 30);
+    stageLines.forEach((line, i) => drawText(80, 64 + i * 22, line, { font: '14px' }));
+    let y = 64 + stageLines.length * 22 + 22;
+    drawText(80, y, 'サイドクエスト', { font: '14px', color: '#ffd54a' });
+    y += 26;
+    SIDE_QUESTS.forEach((q) => {
+      const status = state.flags[q.doneFlag] ? '完了' : (state.flags[q.activeFlag] ? '進行中' : '未受注');
+      drawText(80, y, `・${q.name} (${status})`, { font: '14px' });
+      y += 26;
+    });
+    drawText(80, 300, 'Enterでもどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'bestiary') {
+    const ids = Object.keys(MONSTERS);
+    drawPanel(60, 12, 520, 440);
+    ids.forEach((id, i) => {
+      const known = !!(state.flags.bestiary && state.flags.bestiary[id]);
+      const label = known ? `${MONSTERS[id].glyph} ${MONSTERS[id].name}` : '？？？？？';
+      drawText(80, 30 + i * 22, (m.cursor === i ? '▶ ' : '　') + label, { font: '13px', color: known ? '#fff' : '#777' });
+    });
+    const curId = ids[m.cursor];
+    const curKnown = !!(state.flags.bestiary && state.flags.bestiary[curId]);
+    drawText(80, 422, curKnown ? MONSTERS[curId].desc : 'まだ出会っていないモンスターだ。', { font: '12px', color: '#ffd54a' });
   }
 }
 
@@ -468,6 +587,9 @@ function drawBattleScene() {
   ctx.fillStyle = b.monster.boss ? '#3a0a0a' : '#102a1a';
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
+  ctx.save();
+  if (b.shake > 0) ctx.translate(Math.random() * 8 - 4, Math.random() * 8 - 4);
+
   const mx = CANVAS_W / 2, my = 170;
   const radius = b.monster.boss ? 70 : 50;
   const shakeOx = b.flashEnemy > 0 ? (Math.random() * 6 - 3) : 0;
@@ -501,6 +623,26 @@ function drawBattleScene() {
 
   drawPanel(20, 300, 380, 160);
   b.log.slice(-5).forEach((line, i) => drawText(40, 316 + i * 24, line, { font: '14px' }));
+
+  drawBattlePopups(b);
+  ctx.restore();
+}
+
+function drawBattlePopups(b) {
+  const mx = CANVAS_W / 2, my = 170;
+  (b.popups || []).forEach((p) => {
+    const t = 1 - p.life / 40;
+    const alpha = Math.max(0, 1 - t);
+    const rise = t * 30;
+    const baseX = p.target === 'enemy' ? mx : 110;
+    const baseY = p.target === 'enemy' ? my - 60 : 230;
+    const color = p.heal ? '#7af08a' : (p.crit ? '#ffd54a' : '#ffffff');
+    const text = (p.heal ? '+' : '-') + p.amount + (p.crit ? '!' : '');
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    drawText(baseX, baseY - rise, text, { align: 'center', font: p.crit ? 'bold 22px' : 'bold 16px', color });
+    ctx.restore();
+  });
 }
 
 function drawBattleUI() {
@@ -531,18 +673,18 @@ function drawBattleUI() {
 function drawEnding() {
   ctx.fillStyle = '#0a0a2a';
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-  drawText(CANVAS_W / 2, 100, '魔竜王ガロズを倒した！', { align: 'center', font: 'bold 24px', color: '#ffd54a' });
+  drawText(CANVAS_W / 2, 90, '魔竜王ガロズを倒した！', { align: 'center', font: 'bold 24px', color: '#ffd54a' });
   const lines = [
     '光の聖剣が、闇に染まった竜の心を打ち砕いた。',
     'ルミナ村にも、フェルンの城下町にも、',
     '再び穏やかな日々が戻った。',
-    '',
-    `勇者${state.player.name}の物語は、こうして幕を閉じる……`,
-    '',
-    '- おわり -',
   ];
-  lines.forEach((l, i) => drawText(CANVAS_W / 2, 170 + i * 30, l, { align: 'center', font: '16px' }));
+  const extra = state.endingExtraLines || [];
+  if (extra.length > 0) { lines.push(''); extra.forEach((l) => lines.push(l)); }
+  lines.push('', `勇者${state.player.name}の物語は、こうして幕を閉じる……`, '', '- おわり -');
+  const lineH = lines.length > 10 ? 24 : 28;
+  lines.forEach((l, i) => drawText(CANVAS_W / 2, 150 + i * lineH, l, { align: 'center', font: '16px' }));
   if (Math.floor(state.frame / 30) % 2 === 0) {
-    drawText(CANVAS_W / 2, 420, 'Enterでタイトルへ', { align: 'center', font: '13px', color: '#8899cc' });
+    drawText(CANVAS_W / 2, 440, 'Enterでタイトルへ', { align: 'center', font: '13px', color: '#8899cc' });
   }
 }

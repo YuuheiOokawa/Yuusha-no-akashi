@@ -5,6 +5,10 @@
 const topOptions = ['どうぐ', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', 'ステータス', 'セーブ', 'とじる'];
 const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'にげる'];
 
+// 文字がゆっくり表示されるスピード(1フレームあたりの文字数)
+const DIALOGUE_CHARS_PER_FRAME = 1.4;
+const LOG_CHARS_PER_FRAME = 1.6;
+
 // ------------------------------------------------------------
 // 起動処理
 // ------------------------------------------------------------
@@ -13,6 +17,8 @@ window.addEventListener('DOMContentLoaded', () => {
   migrateLegacySave();
   state.hasSave = hasSaveData();
   document.addEventListener('keydown', handleKeydown);
+  initControlMode();
+  initTouchControls();
   requestAnimationFrame(loop);
 });
 
@@ -37,6 +43,87 @@ function update() {
     state.shop.msgTimer--;
     if (state.shop.msgTimer <= 0) state.shop.msg = null;
   }
+  if (state.dialogue) {
+    const total = dialoguePageCharCount(state.dialogue);
+    state.dialogue.revealed = Math.min(total, state.dialogue.revealed + DIALOGUE_CHARS_PER_FRAME);
+  }
+  if (state.battle) {
+    const lastLen = (state.battle.log[state.battle.log.length - 1] || '').length;
+    state.battle.logRevealed = Math.min(lastLen, (state.battle.logRevealed || 0) + LOG_CHARS_PER_FRAME);
+  }
+}
+
+function dialoguePageCharCount(d) {
+  const page = d.pages[d.index] || [];
+  return page.reduce((s, l) => s + l.length, 0);
+}
+
+// ------------------------------------------------------------
+// PC/スマホ操作モードの切り替え
+// ------------------------------------------------------------
+const CONTROL_MODE_KEY = 'yuusha_no_akashi_control_mode';
+
+function detectDefaultControlMode() {
+  const saved = localStorage.getItem(CONTROL_MODE_KEY);
+  if (saved === 'mobile' || saved === 'desktop') return saved;
+  const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  return coarse ? 'mobile' : 'desktop';
+}
+
+function applyControlMode(mode) {
+  const isMobile = mode === 'mobile';
+  document.body.classList.toggle('mobile-mode', isMobile);
+  const btn = document.getElementById('modeToggle');
+  if (btn) {
+    btn.classList.toggle('is-active', isMobile);
+    btn.textContent = isMobile ? '⌨️ PC操作にする' : '📱 スマホ操作にする';
+  }
+  try { localStorage.setItem(CONTROL_MODE_KEY, mode); } catch (e) { /* localStorage unavailable */ }
+}
+
+function initControlMode() {
+  applyControlMode(detectDefaultControlMode());
+  const btn = document.getElementById('modeToggle');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const isMobile = document.body.classList.contains('mobile-mode');
+      applyControlMode(isMobile ? 'desktop' : 'mobile');
+    });
+  }
+}
+
+// ------------------------------------------------------------
+// 疑似ゲームボタン (ゲームボーイ風の十字キー・A/B/STARTボタン)
+// ------------------------------------------------------------
+function simulateKey(key) {
+  handleKeydown({ key, preventDefault() {} });
+}
+
+function bindRepeatButton(el) {
+  const key = el.dataset.key;
+  let timer = null;
+  const fire = () => simulateKey(key);
+  const start = (e) => {
+    e.preventDefault();
+    fire();
+    stop();
+    timer = setInterval(fire, 150);
+  };
+  const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+  el.addEventListener('pointerdown', start);
+  el.addEventListener('pointerup', stop);
+  el.addEventListener('pointerleave', stop);
+  el.addEventListener('pointercancel', stop);
+}
+
+function bindTapButton(el) {
+  const key = el.dataset.key;
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); simulateKey(key); });
+}
+
+function initTouchControls() {
+  document.querySelectorAll('#dpad .dbtn').forEach(bindRepeatButton);
+  document.querySelectorAll('#actionpad .abtn, #actionpad .startbtn').forEach(bindTapButton);
 }
 
 // ------------------------------------------------------------
@@ -138,11 +225,17 @@ function openMenu() { state.menu = { mode: 'top', cursor: 0 }; state.screen = 'M
 function dialogueKey(e) {
   if (e.key === 'Enter' || e.key === ' ') {
     const d = state.dialogue;
+    if (d.revealed < dialoguePageCharCount(d)) {
+      d.revealed = dialoguePageCharCount(d);
+      return;
+    }
     d.index++;
     if (d.index >= d.pages.length) {
       const onDone = d.onDone;
       state.dialogue = null;
       if (onDone) onDone();
+    } else {
+      d.revealed = 0;
     }
   }
 }
@@ -437,9 +530,16 @@ function drawHud() {
 
 function drawDialogueBox() {
   drawPanel(20, 340, 600, 120);
-  const lines = state.dialogue.pages[state.dialogue.index];
-  lines.forEach((line, i) => drawText(40, 364 + i * 26, line, { font: '18px' }));
-  if (Math.floor(state.frame / 20) % 2 === 0) {
+  const d = state.dialogue;
+  const lines = d.pages[d.index];
+  let remaining = Math.floor(d.revealed);
+  lines.forEach((line, i) => {
+    const shown = line.slice(0, Math.max(0, remaining));
+    remaining -= line.length;
+    drawText(40, 364 + i * 26, shown, { font: '18px' });
+  });
+  const fullyRevealed = d.revealed >= dialoguePageCharCount(d);
+  if (fullyRevealed && Math.floor(state.frame / 20) % 2 === 0) {
     drawText(600, 432, '▼', { align: 'right', font: '16px', color: '#ffd54a' });
   }
 }
@@ -622,7 +722,12 @@ function drawBattleScene() {
   drawText(220, 264, `${p.mp}/${p.maxMp}`, { font: '13px' });
 
   drawPanel(20, 300, 380, 160);
-  b.log.slice(-5).forEach((line, i) => drawText(40, 316 + i * 24, line, { font: '14px' }));
+  const visibleLog = b.log.slice(-5);
+  visibleLog.forEach((line, i) => {
+    const isLast = i === visibleLog.length - 1;
+    const shown = isLast ? line.slice(0, Math.floor(b.logRevealed || 0)) : line;
+    drawText(40, 316 + i * 24, shown, { font: '14px' });
+  });
 
   drawBattlePopups(b);
   ctx.restore();

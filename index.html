@@ -2,17 +2,43 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>勇者の証 - ドラゴンクエスト風RPG</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>勇者の証</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="wrap">
-    <h1>勇者の証</h1>
-    <canvas id="gameCanvas"></canvas>
-    <div id="help">
-      矢印キー: 移動 / 決定&nbsp;&nbsp;Enter・Space: 決定・話す・進める&nbsp;&nbsp;Esc・M: メニュー・戻る
+    <div class="topbar">
+      <h1>勇者の証</h1>
+      <button id="modeToggle" class="mode-toggle" type="button">📱 スマホ操作</button>
     </div>
+
+    <div id="stage">
+      <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="controls">
+      <div id="dpad">
+        <button class="dbtn up" data-key="ArrowUp" aria-label="上">▲</button>
+        <button class="dbtn left" data-key="ArrowLeft" aria-label="左">◀</button>
+        <button class="dbtn right" data-key="ArrowRight" aria-label="右">▶</button>
+        <button class="dbtn down" data-key="ArrowDown" aria-label="下">▼</button>
+      </div>
+      <div id="actionpad">
+        <div class="ab-row">
+          <button class="abtn btn-b" data-key="Escape" aria-label="キャンセル">B</button>
+          <button class="abtn btn-a" data-key="Enter" aria-label="決定">A</button>
+        </div>
+        <button class="startbtn" data-key="m" aria-label="メニュー">START</button>
+      </div>
+    </div>
+
+    <p id="help-desktop" class="help">
+      矢印キー: 移動 / 決定&nbsp;&nbsp;Enter・Space: 決定・話す・進める&nbsp;&nbsp;Esc・M: メニュー・戻る
+    </p>
+    <p id="help-mobile" class="help">
+      十字キー: 移動&nbsp;&nbsp;A: 決定・話す・進める&nbsp;&nbsp;B: キャンセル・戻る&nbsp;&nbsp;START: メニュー
+    </p>
   </div>
 
   <script src="js/data.js"></script>

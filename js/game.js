@@ -51,7 +51,7 @@ function showDialogue(rawLines, onDone) {
   const pages = [];
   for (let i = 0; i < wrapped.length; i += 3) pages.push(wrapped.slice(i, i + 3));
   if (pages.length === 0) pages.push(['...']);
-  state.dialogue = { pages, index: 0, onDone: onDone || (() => { state.screen = 'FIELD'; }) };
+  state.dialogue = { pages, index: 0, revealed: 0, onDone: onDone || (() => { state.screen = 'FIELD'; }) };
   state.screen = 'DIALOGUE';
 }
 

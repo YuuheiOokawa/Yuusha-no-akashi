@@ -17,6 +17,7 @@ function createBattle(monsterId, isBoss) {
       boss: !!isBoss,
     },
     log: [],
+    logRevealed: 0,
     turn: 'command', // command | resolving | won | lost | fled
     cursor: 0,
     menu: 'main', // main | spell | item
@@ -37,6 +38,7 @@ function pushPopup(battle, target, amount, opts) {
 
 function pushLog(battle, msg) {
   battle.log.push(msg);
+  battle.logRevealed = 0;
   if (battle.log.length > 4) battle.log.shift();
 }
 

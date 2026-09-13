@@ -19,8 +19,9 @@ const state = {
     storyEnded: false, superbossDefeated: false,
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
-    kainQuestActive: false, swordFound: false, kainQuestDone: false,
+    kainQuestActive: false, swordFound: false, kainQuestDone: false, kainTalkCount: 0,
     bestiaryRewardGiven: false,
+    loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
     killCounts: {}, bestiary: {}, visitedMaps: {},
   },
   dialogue: null,
@@ -246,6 +247,9 @@ function endBattleVictory() {
       state.flags.superbossDefeated = true;
       addOwnedEquipment(p, 'sword_dawn');
       pushLog(b, '暁光の剣を手に入れた！');
+      if (state.player.companion === 'kain') {
+        pushLog(b, 'カインが呟いた……「これでようやく、雪辱を果たせた」');
+      }
     }
   }
 
@@ -371,6 +375,9 @@ function triggerEnding() {
   } else if (doneQuests.length > 0) {
     lines.push('道中で出会った人々の悩みにも、できる限り手を貸してきた。');
   }
+  if (state.player.companion === 'kain') {
+    lines.push('剣士カインは、これからも勇者と共に歩むと誓った。');
+  }
   state.endingExtraLines = lines;
   state.screen = 'ENDING';
 }
@@ -416,6 +423,31 @@ function shopSell(id) {
 function flashShopMsg(msg) {
   state.shop.msg = msg;
   state.shop.msgTimer = 90;
+}
+
+// ------------------------------------------------------------
+// 隠しコマンド: レベル最大化 & 最強フル装備
+// ------------------------------------------------------------
+const CHEAT_MAX_LEVEL = 30;
+
+function activateCheat() {
+  const p = state.player;
+  if (!p) return;
+  p.level = CHEAT_MAX_LEVEL;
+  const st = statsForLevel(CHEAT_MAX_LEVEL);
+  p.maxHp = st.maxHp;
+  p.maxMp = st.maxMp;
+  p.hp = p.maxHp;
+  p.mp = p.maxMp;
+  refreshSpells(p);
+  Object.keys(EQUIPMENT).forEach((id) => addOwnedEquipment(p, id));
+  p.weapon = 'sword_dawn';
+  p.shield = 'shield_aegis';
+  p.armor = 'armor_radiant';
+  p.accessory = 'twilight_charm';
+  p.gold = 99999;
+  state.flags.hasHolySword = true;
+  showDialogue(['……体の奥から、抑えきれない力が溢れ出す！', '(隠しコマンドが発動した！ 勇者は最強の姿になった！)'], () => { state.screen = 'FIELD'; });
 }
 
 // ------------------------------------------------------------
@@ -489,7 +521,7 @@ if (typeof module !== 'undefined') {
     endBattleVictory, endBattleDefeat, resolveMonsterTurnIfAlive,
     battleCommandAttack, battleCommandSpell, battleCommandItem, battleCommandDefend, battleCommandFlee, closeBattle,
     openShop, shopBuyList, shopSellList, itemDef, shopBuy, shopSell,
-    craftHasMaterials, craftItem,
+    craftHasMaterials, craftItem, activateCheat,
     saveGame, loadGame, listSaveSlots, hasSaveData, migrateLegacySave,
     triggerEnding, showDialogue, showConfirm,
   };

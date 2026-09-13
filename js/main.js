@@ -127,10 +127,27 @@ function initTouchControls() {
 }
 
 // ------------------------------------------------------------
+// 隠しコマンド (↑↑↓↓←→←→BA を フィールド上で入力すると発動)
+// ------------------------------------------------------------
+const CHEAT_SEQUENCE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'Escape', 'Enter'];
+let cheatBuffer = [];
+function checkCheatCode(key) {
+  cheatBuffer.push(key);
+  if (cheatBuffer.length > CHEAT_SEQUENCE.length) cheatBuffer.shift();
+  if (cheatBuffer.length === CHEAT_SEQUENCE.length && CHEAT_SEQUENCE.every((k, i) => k === cheatBuffer[i])) {
+    cheatBuffer = [];
+    activateCheat();
+  }
+}
+
+// ------------------------------------------------------------
 // 入力ディスパッチ
 // ------------------------------------------------------------
 function handleKeydown(e) {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'Enter'].includes(e.key)) e.preventDefault();
+  // 隠しコマンドは画面遷移をまたいでも判定する(例えばコマンド中のEscapeで
+  // 一時的にメニューが開いても、続くキー入力で発動できるように)。
+  if (state.player) checkCheatCode(e.key);
   switch (state.screen) {
     case 'TITLE': titleKey(e); break;
     case 'FIELD': fieldKey(e); break;
@@ -154,8 +171,9 @@ function defaultFlags() {
     storyEnded: false, superbossDefeated: false,
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
-    kainQuestActive: false, swordFound: false, kainQuestDone: false,
+    kainQuestActive: false, swordFound: false, kainQuestDone: false, kainTalkCount: 0,
     bestiaryRewardGiven: false,
+    loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
     killCounts: {}, bestiary: {}, visitedMaps: {},
   };
 }

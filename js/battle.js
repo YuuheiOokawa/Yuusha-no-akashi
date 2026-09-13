@@ -28,6 +28,8 @@ function createBattle(monsterId, isBoss) {
     scripted: null, // 'guardian' | 'dragon' | 'superboss' | null(通常/ミミック戦)
     playerStatus: null, // { type: 'poison', turns }
     monsterStatus: null, // { type: 'poison'|'sleep', turns }
+    defending: false,
+    playerAtkBonus: 0,
   };
 }
 
@@ -56,13 +58,24 @@ function spellDamage(power) {
 function playerAttack(state, battle) {
   const p = state.player;
   const crit = rollCrit();
-  let dmg = physicalDamage(playerAtk(p), battle.monster.def);
+  let dmg = physicalDamage(playerAtk(p) + (battle.playerAtkBonus || 0), battle.monster.def);
   if (crit) dmg = Math.round(dmg * CRIT_MULT);
   battle.monster.hp = Math.max(0, battle.monster.hp - dmg);
   battle.flashEnemy = 6;
   battle.shake = crit ? 10 : 0;
   pushPopup(battle, 'enemy', dmg, { crit });
   pushLog(battle, `${p.name}のこうげき！${crit ? ' 会心の一撃！' : ''} ${battle.monster.name}に${dmg}のダメージ！`);
+}
+
+// なかまの支援攻撃(プレイヤーの行動後、自動で発生する)
+function companionAttack(state, battle) {
+  const comp = COMPANIONS[state.player.companion];
+  if (!comp) return;
+  const dmg = physicalDamage(comp.atk(state.player.level), battle.monster.def);
+  battle.monster.hp = Math.max(0, battle.monster.hp - dmg);
+  battle.flashEnemy = 6;
+  pushPopup(battle, 'enemy', dmg, {});
+  pushLog(battle, `${comp.name}のこうげき！ ${battle.monster.name}に${dmg}のダメージ！`);
 }
 
 function playerCastSpell(state, battle, spellId) {
@@ -107,6 +120,9 @@ function playerCastSpell(state, battle, spellId) {
     } else {
       pushLog(battle, `${p.name}は${spell.name}を唱えたが、効果がなかった！`);
     }
+  } else if (spell.kind === 'buff') {
+    battle.playerAtkBonus = (battle.playerAtkBonus || 0) + spell.amount;
+    pushLog(battle, `${p.name}は${spell.name}を唱えた！ こうげき力が上がった！`);
   }
   return true;
 }
@@ -140,6 +156,7 @@ function monsterAttack(state, battle) {
   const crit = rollCrit();
   let dmg = physicalDamage(battle.monster.atk, playerDef(p));
   if (crit) dmg = Math.round(dmg * CRIT_MULT);
+  if (battle.defending) dmg = Math.max(1, Math.ceil(dmg / 2));
   p.hp = Math.max(0, p.hp - dmg);
   battle.flashPlayer = 6;
   if (crit) battle.shake = 10;
@@ -197,7 +214,7 @@ function tryFlee(battle) {
 if (typeof module !== 'undefined') {
   module.exports = {
     rand, createBattle, pushLog, pushPopup, physicalDamage, spellDamage, rollCrit,
-    playerAttack, playerCastSpell, playerUseItem,
+    playerAttack, playerCastSpell, playerUseItem, companionAttack,
     monsterAttack, monsterTakeTurn, applyStatusTicks, tryFlee,
   };
 }

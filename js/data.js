@@ -480,6 +480,30 @@ const NPCS = [
       return ['(キラッ……)', '古びたロケットを見つけた！ フェルンの城下町に届けよう。'];
     },
   },
+  {
+    id: 'kain', map: 'town2', x: 18, y: 9, glyph: '剣', color: '#4a9ae0',
+    hidden(state) { return !!state.player.companion; },
+    lines(state) {
+      if (state.flags.swordFound) {
+        state.flags.kainQuestDone = true;
+        state.player.companion = 'kain';
+        return ['おお、これは俺の剣だ！ 本当にありがとう！', 'この恩は戦いで返そう。俺を仲間にしてくれ！', '(カインが仲間になった！)'];
+      }
+      if (state.flags.kainQuestActive) {
+        return ['まだ剣は見つからないか……', '囁きの森のどこかで盗賊にやられたんだ。'];
+      }
+      state.flags.kainQuestActive = true;
+      return ['……ちっ、盗賊どもにやられて剣を奪われちまった。', '囁きの森のどこかに落ちているはずなんだが。', 'もし見かけたら、届けてくれないか？'];
+    },
+  },
+  {
+    id: 'lostSword', map: 'field2', x: 17, y: 6, glyph: '剣', color: '#c0c0c0',
+    hidden(state) { return state.flags.swordFound; },
+    lines(state) {
+      state.flags.swordFound = true;
+      return ['(キラリ……)', '打ち捨てられた剣を見つけた！ フェルンの城下町のカインに届けよう。'];
+    },
+  },
 ];
 
 // ============================================================
@@ -489,7 +513,18 @@ const SIDE_QUESTS = [
   { id: 'dog', name: 'まいごの犬', activeFlag: 'dogQuestActive', doneFlag: 'dogQuestDone' },
   { id: 'wolfHunt', name: '狼退治', activeFlag: 'wolfQuestActive', doneFlag: 'wolfQuestDone' },
   { id: 'locket', name: '忘れ形見のロケット', activeFlag: 'locketQuestActive', doneFlag: 'locketQuestDone' },
+  { id: 'kainSword', name: '旅の剣士の剣', activeFlag: 'kainQuestActive', doneFlag: 'kainQuestDone' },
 ];
+
+// ============================================================
+// なかまキャラクター (戦闘で自動的に支援攻撃を行う)
+// ============================================================
+const COMPANIONS = {
+  kain: {
+    id: 'kain', name: 'カイン', glyph: '剣', color: '#4a9ae0',
+    atk(level) { return 6 + level * 2; },
+  },
+};
 
 // ============================================================
 // ゲーム開始時のオープニング (さいしょから、のみ表示)
@@ -571,6 +606,11 @@ const EQUIPMENT = {
   armor_radiant: { id: 'armor_radiant', name: '光の鎧', type: 'armor', def: 26, price: 0 },
   sword_dawn: { id: 'sword_dawn', name: '暁光の剣', type: 'weapon', atk: 46, price: 0 },
   locket_memory: { id: 'locket_memory', name: '思い出のロケット', type: 'accessory', atk: 3, def: 3, price: 0 },
+  fang_ring: { id: 'fang_ring', name: '牙の指輪', type: 'accessory', atk: 5, price: 0 },
+  ghost_charm: { id: 'ghost_charm', name: '亡霊のお守り', type: 'accessory', def: 5, price: 0 },
+  armor_golemplate: { id: 'armor_golemplate', name: '巨人の鎧', type: 'armor', def: 15, price: 0 },
+  twilight_charm: { id: 'twilight_charm', name: '黄昏のお守り', type: 'accessory', atk: 10, def: 10, price: 0 },
+  ring_hunter: { id: 'ring_hunter', name: '狩人の指輪', type: 'accessory', atk: 8, def: 8, price: 0 },
 };
 
 // ============================================================
@@ -608,7 +648,25 @@ const ITEMS = {
       return `メラの巻物を使った！ ${monster.name}に${dmg}のダメージ！`;
     },
   },
+  mat_slime_gel: { id: 'mat_slime_gel', name: 'スライムのゲル', price: 5, material: true, usableInBattle: false, usableInField: false },
+  mat_wolf_fang: { id: 'mat_wolf_fang', name: '狼の牙', price: 6, material: true, usableInBattle: false, usableInField: false },
+  mat_ghost_dust: { id: 'mat_ghost_dust', name: 'ゴーストの残滓', price: 8, material: true, usableInBattle: false, usableInField: false },
+  mat_bat_wing: { id: 'mat_bat_wing', name: 'こうもりの羽', price: 7, material: true, usableInBattle: false, usableInField: false },
+  mat_bone: { id: 'mat_bone', name: '古い骨', price: 6, material: true, usableInBattle: false, usableInField: false },
+  mat_golem_core: { id: 'mat_golem_core', name: 'ゴーレムの核', price: 20, material: true, usableInBattle: false, usableInField: false },
+  mat_dark_shard: { id: 'mat_dark_shard', name: '黒騎士の欠片', price: 25, material: true, usableInBattle: false, usableInField: false },
+  mat_mimic_fang: { id: 'mat_mimic_fang', name: 'ミミックの牙', price: 30, material: true, usableInBattle: false, usableInField: false },
 };
+
+// ============================================================
+// アイテム合成レシピ
+// ============================================================
+const CRAFT_RECIPES = [
+  { id: 'fang_ring', name: '牙の指輪', result: 'fang_ring', gold: 30, materials: { mat_wolf_fang: 3, mat_slime_gel: 2 } },
+  { id: 'ghost_charm', name: '亡霊のお守り', result: 'ghost_charm', gold: 50, materials: { mat_ghost_dust: 3, mat_bat_wing: 2 } },
+  { id: 'armor_golemplate', name: '巨人の鎧', result: 'armor_golemplate', gold: 120, materials: { mat_golem_core: 2, mat_bone: 3 } },
+  { id: 'twilight_charm', name: '黄昏のお守り', result: 'twilight_charm', gold: 300, materials: { mat_dark_shard: 2, mat_mimic_fang: 1, mat_golem_core: 1 } },
+];
 
 // ============================================================
 // 呪文
@@ -624,23 +682,25 @@ const SPELLS = {
   blaze: { id: 'blaze', name: 'ブレイズ', mp: 7, learnLv: 12, kind: 'attack', power: 34, element: 'fire', desc: '敵に大きな炎のダメージ' },
   holyLight: { id: 'holyLight', name: 'ホーリー', mp: 9, learnLv: 14, kind: 'attack', power: 42, element: 'holy', desc: '敵に聖なる大ダメージ' },
   exHeal: { id: 'exHeal', name: 'エクスヒール', mp: 14, learnLv: 16, kind: 'heal', power: 120, desc: 'HPを120前後回復する' },
+  quake: { id: 'quake', name: 'クエイク', mp: 6, learnLv: 11, kind: 'attack', power: 30, element: 'earth', desc: '敵に大地の力によるダメージ' },
+  blessing: { id: 'blessing', name: 'ブレッシング', mp: 5, learnLv: 13, kind: 'buff', stat: 'atk', amount: 8, desc: 'こうげき力が戦闘中ずっと上がる' },
 };
 
 // ============================================================
 // モンスター
 // ============================================================
 const MONSTERS = {
-  slime: { id: 'slime', name: 'スライム', hp: 10, atk: 6, def: 1, exp: 4, gold: 5, glyph: 'ス', color: '#5aa9e6', desc: 'ぷるぷるとした低級モンスター。攻撃力は低い。' },
-  slime_fat: { id: 'slime_fat', name: 'デブスライム', hp: 17, atk: 8, def: 3, exp: 9, gold: 10, glyph: 'ス', color: '#3a7fc9', desc: 'ひとまわり大きいスライム。皮膚が厚く打たれ強い。' },
-  wolf: { id: 'wolf', name: 'はぐれ狼', hp: 19, atk: 10, def: 3, exp: 11, gold: 9, glyph: '狼', color: '#8a7a6a', desc: '群れからはぐれた狼。牙による攻撃は鋭い。' },
-  ghost: { id: 'ghost', name: 'ゴースト', hp: 23, atk: 13, def: 4, exp: 17, gold: 14, glyph: '霊', color: '#b18ae6', desc: '成仏できない霊。実体を持たずすり抜けるように動く。' },
+  slime: { id: 'slime', name: 'スライム', hp: 10, atk: 6, def: 1, exp: 4, gold: 5, glyph: 'ス', color: '#5aa9e6', desc: 'ぷるぷるとした低級モンスター。攻撃力は低い。', drop: { id: 'mat_slime_gel', chance: 0.4 } },
+  slime_fat: { id: 'slime_fat', name: 'デブスライム', hp: 17, atk: 8, def: 3, exp: 9, gold: 10, glyph: 'ス', color: '#3a7fc9', desc: 'ひとまわり大きいスライム。皮膚が厚く打たれ強い。', drop: { id: 'mat_slime_gel', chance: 0.4 } },
+  wolf: { id: 'wolf', name: 'はぐれ狼', hp: 19, atk: 10, def: 3, exp: 11, gold: 9, glyph: '狼', color: '#8a7a6a', desc: '群れからはぐれた狼。牙による攻撃は鋭い。', drop: { id: 'mat_wolf_fang', chance: 0.4 } },
+  ghost: { id: 'ghost', name: 'ゴースト', hp: 23, atk: 13, def: 4, exp: 17, gold: 14, glyph: '霊', color: '#b18ae6', desc: '成仏できない霊。実体を持たずすり抜けるように動く。', drop: { id: 'mat_ghost_dust', chance: 0.35 } },
   scorpion: { id: 'scorpion', name: 'さそり', hp: 27, atk: 15, def: 5, exp: 21, gold: 18, glyph: '蠍', color: '#e0a03a', poisonChance: 0.35, desc: '猛毒の針を持つ大サソリ。毒攻撃に注意。' },
-  golem: { id: 'golem', name: 'ゴーレム', hp: 42, atk: 18, def: 10, exp: 42, gold: 35, glyph: '岩', color: '#7a7a7a', desc: '岩でできた巨体の番人。高い防御力を誇る。' },
-  bat: { id: 'bat', name: 'こうもり', hp: 15, atk: 12, def: 3, exp: 13, gold: 11, glyph: '蝙', color: '#7a5a9a', desc: '洞窟や森に棲む大コウモリ。素早い動きで襲いかかる。' },
+  golem: { id: 'golem', name: 'ゴーレム', hp: 42, atk: 18, def: 10, exp: 42, gold: 35, glyph: '岩', color: '#7a7a7a', desc: '岩でできた巨体の番人。高い防御力を誇る。', drop: { id: 'mat_golem_core', chance: 0.3 } },
+  bat: { id: 'bat', name: 'こうもり', hp: 15, atk: 12, def: 3, exp: 13, gold: 11, glyph: '蝙', color: '#7a5a9a', desc: '洞窟や森に棲む大コウモリ。素早い動きで襲いかかる。', drop: { id: 'mat_bat_wing', chance: 0.35 } },
   thief: { id: 'thief', name: '盗賊', hp: 21, atk: 14, def: 4, exp: 16, gold: 22, glyph: '賊', color: '#9a7a4a', desc: '旅人を狙う盗賊。金品を狙って襲ってくる。' },
-  skeleton: { id: 'skeleton', name: 'スケルトン', hp: 30, atk: 17, def: 6, exp: 26, gold: 20, glyph: '骨', color: '#d8d8c0', desc: '古代遺跡をさまよう骸骨の戦士。' },
-  dark_knight: { id: 'dark_knight', name: '黒騎士', hp: 38, atk: 21, def: 9, exp: 36, gold: 30, glyph: '騎', color: '#3a3a4a', desc: '闇に堕ちた騎士。重厚な一撃を放つ。' },
-  mimic: { id: 'mimic', name: 'ミミック', hp: 34, atk: 19, def: 6, exp: 32, gold: 45, glyph: '箱', color: '#c9a227', desc: '宝箱に擬態する魔物。油断すると牙をむく。' },
+  skeleton: { id: 'skeleton', name: 'スケルトン', hp: 30, atk: 17, def: 6, exp: 26, gold: 20, glyph: '骨', color: '#d8d8c0', desc: '古代遺跡をさまよう骸骨の戦士。', drop: { id: 'mat_bone', chance: 0.4 } },
+  dark_knight: { id: 'dark_knight', name: '黒騎士', hp: 38, atk: 21, def: 9, exp: 36, gold: 30, glyph: '騎', color: '#3a3a4a', desc: '闇に堕ちた騎士。重厚な一撃を放つ。', drop: { id: 'mat_dark_shard', chance: 0.3 } },
+  mimic: { id: 'mimic', name: 'ミミック', hp: 34, atk: 19, def: 6, exp: 32, gold: 45, glyph: '箱', color: '#c9a227', desc: '宝箱に擬態する魔物。油断すると牙をむく。', drop: { id: 'mat_mimic_fang', chance: 0.5 } },
   guardian_stone: {
     id: 'guardian_stone', name: '石の番人ガーディアン', hp: 110, atk: 23, def: 14, exp: 150, gold: 100,
     glyph: '像', color: '#8a8a9a', boss: true, statusImmune: true,
@@ -657,7 +717,7 @@ const MONSTERS = {
   },
   iron_golem: {
     id: 'iron_golem', name: '鋼鉄の巨人', hp: 70, atk: 26, def: 16, exp: 70, gold: 55,
-    glyph: '鉄', color: '#5a5a6a', desc: '塔の試練が生み出した鋼鉄の巨人。',
+    glyph: '鉄', color: '#5a5a6a', desc: '塔の試練が生み出した鋼鉄の巨人。', drop: { id: 'mat_golem_core', chance: 0.3 },
   },
   arcane_sentinel: {
     id: 'arcane_sentinel', name: '魔導番兵', hp: 50, atk: 29, def: 8, exp: 65, gold: 60,
@@ -673,7 +733,7 @@ const MONSTERS = {
 if (typeof module !== 'undefined') {
   module.exports = {
     TILES, WALKABLE, ENCOUNTER_TILES, MAPS, WARPS, BARRIER_MAP, BARRIER_FLAG, CHESTS, SCRIPTED_ENCOUNTERS,
-    NPCS, SHOPS, EQUIPMENT, ITEMS, SPELLS, MONSTERS, SIDE_QUESTS,
+    NPCS, SHOPS, EQUIPMENT, ITEMS, SPELLS, MONSTERS, SIDE_QUESTS, COMPANIONS, CRAFT_RECIPES,
     OPENING_STORY, MAP_FIRST_VISIT_HINTS,
     townStage, townGridForStage, TOWN_GRIDS_BY_STAGE, TOWN_BG_COLORS, mainQuestStageText,
   };

@@ -482,8 +482,13 @@ const NPCS = [
   },
   {
     id: 'kain', map: 'town2', x: 18, y: 9, glyph: '剣', color: '#4a9ae0',
-    hidden(state) { return !!state.player.companion; },
     lines(state) {
+      if (state.player.companion === 'kain') {
+        const count = (state.flags.kainTalkCount = (state.flags.kainTalkCount || 0) + 1);
+        if (count === 1) return ['ああ、頼りにしてるぜ、相棒。', 'この剣は……昔、兄からもらった大切な剣なんだ。'];
+        if (count === 2) return ['実はな……昔、修行のために試練の塔に挑んだことがある。', 'だが、あの塔の主に手も足も出ずに敗れちまってな。'];
+        return ['もう一度、あの塔に挑みたい。今度はお前と一緒にな。'];
+      }
       if (state.flags.swordFound) {
         state.flags.kainQuestDone = true;
         state.player.companion = 'kain';
@@ -504,7 +509,58 @@ const NPCS = [
       return ['(キラリ……)', '打ち捨てられた剣を見つけた！ フェルンの城下町のカインに届けよう。'];
     },
   },
+  {
+    id: 'lore_ruins', map: 'ruins', x: 6, y: 12, glyph: '石', color: '#9a9a9a',
+    lines(state) {
+      return readLoreStone(state, 'lore_ruins', [
+        'この石版には、古の魔法文明の記録が刻まれている。',
+        '……かつて、封印の術を極めた賢者たちがいたという。',
+        '彼らは強大な竜を封じるため、扉を守る番人と、',
+        '力の源となる聖剣をこの地に遺した。',
+      ]);
+    },
+  },
+  {
+    id: 'lore_cave', map: 'cave', x: 6, y: 11, glyph: '石', color: '#9a9a9a',
+    lines(state) {
+      return readLoreStone(state, 'lore_cave', [
+        '洞窟の壁に刻まれた文字はかすれているが、辛うじて読み取れる。',
+        '……「竜の王を封じし賢者たちは、やがて力に溺れ、',
+        '一人、また一人と闇に堕ちていった」……',
+        '一体、何があったのだろうか。',
+      ]);
+    },
+  },
+  {
+    id: 'lore_tower', map: 'tower', x: 9, y: 2, glyph: '石', color: '#9a9a9a',
+    lines(state) {
+      return readLoreStone(state, 'lore_tower', [
+        '塔の最上階近くに、古い石版が残されている。',
+        '……「堕ちた賢者は、己の罪を試練という形で',
+        '後の世に問い続けている」……',
+        'この塔の主、大魔導士ゼノンのことだろうか。',
+      ]);
+    },
+  },
 ];
+
+// ============================================================
+// 古代の石版 (3枚すべて読むと隠された過去が明かされる)
+// ============================================================
+function readLoreStone(state, id, text) {
+  state.flags.loreStonesStarted = true;
+  state.flags.loreStones[id] = true;
+  const lines = text.slice();
+  const allIds = ['lore_ruins', 'lore_cave', 'lore_tower'];
+  const allFound = allIds.every((lid) => state.flags.loreStones[lid]);
+  if (allFound && !state.flags.loreStonesComplete) {
+    state.flags.loreStonesComplete = true;
+    addOwnedEquipment(state.player, 'pendant_sage');
+    lines.push('……すべての石版を読み解いた。');
+    lines.push('古の知恵が身を包み、「賢者の証」を手に入れた！');
+  }
+  return lines;
+}
 
 // ============================================================
 // サイドクエスト一覧 (クエストログUIが参照する)
@@ -514,6 +570,7 @@ const SIDE_QUESTS = [
   { id: 'wolfHunt', name: '狼退治', activeFlag: 'wolfQuestActive', doneFlag: 'wolfQuestDone' },
   { id: 'locket', name: '忘れ形見のロケット', activeFlag: 'locketQuestActive', doneFlag: 'locketQuestDone' },
   { id: 'kainSword', name: '旅の剣士の剣', activeFlag: 'kainQuestActive', doneFlag: 'kainQuestDone' },
+  { id: 'loreStones', name: '古代の石版', activeFlag: 'loreStonesStarted', doneFlag: 'loreStonesComplete' },
 ];
 
 // ============================================================
@@ -611,6 +668,7 @@ const EQUIPMENT = {
   armor_golemplate: { id: 'armor_golemplate', name: '巨人の鎧', type: 'armor', def: 15, price: 0 },
   twilight_charm: { id: 'twilight_charm', name: '黄昏のお守り', type: 'accessory', atk: 10, def: 10, price: 0 },
   ring_hunter: { id: 'ring_hunter', name: '狩人の指輪', type: 'accessory', atk: 8, def: 8, price: 0 },
+  pendant_sage: { id: 'pendant_sage', name: '賢者の証', type: 'accessory', atk: 4, def: 4, price: 0 },
 };
 
 // ============================================================

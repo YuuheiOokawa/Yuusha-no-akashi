@@ -2,8 +2,8 @@
 // main.js - 描画・入力・メインループ
 // ============================================================
 
-const topOptions = ['どうぐ', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', 'ステータス', 'セーブ', 'とじる'];
-const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'にげる'];
+const topOptions = ['どうぐ', '合成', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', 'ステータス', 'セーブ', 'とじる'];
+const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'ぼうぎょ', 'にげる'];
 
 // 文字がゆっくり表示されるスピード(1フレームあたりの文字数)
 const DIALOGUE_CHARS_PER_FRAME = 1.4;
@@ -154,6 +154,8 @@ function defaultFlags() {
     storyEnded: false, superbossDefeated: false,
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
+    kainQuestActive: false, swordFound: false, kainQuestDone: false,
+    bestiaryRewardGiven: false,
     killCounts: {}, bestiary: {}, visitedMaps: {},
   };
 }
@@ -172,6 +174,7 @@ function continueGame(slot) {
   state.player = data.player;
   if (!state.player.ownedEquipment) state.player.ownedEquipment = [state.player.weapon].filter(Boolean);
   if (state.player.accessory === undefined) state.player.accessory = null;
+  if (state.player.companion === undefined) state.player.companion = null;
   state.flags = Object.assign(defaultFlags(), data.flags || {});
   state.currentSlot = slot;
   state.screen = 'FIELD';
@@ -261,6 +264,7 @@ function menuKey(e) {
     else if (e.key === 'Enter' || e.key === ' ') {
       const choice = topOptions[m.cursor];
       if (choice === 'どうぐ') { m.mode = 'item'; m.cursor = 0; m.msg = null; }
+      else if (choice === '合成') { m.mode = 'craft'; m.cursor = 0; m.msg = null; }
       else if (choice === 'そうび') { m.mode = 'equipSlot'; m.cursor = 0; }
       else if (choice === 'じゅもん') {
         if (state.player.spells.length > 0) { m.mode = 'spell'; m.cursor = 0; m.msg = null; }
@@ -273,7 +277,7 @@ function menuKey(e) {
     return;
   }
   if (m.mode === 'item') {
-    const list = Object.keys(state.player.inventory);
+    const list = Object.keys(state.player.inventory).filter((id) => ITEMS[id] && !ITEMS[id].material);
     if (e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; m.msg = null; return; }
     if (list.length === 0) { if (e.key === 'Enter' || e.key === ' ') { m.mode = 'top'; m.cursor = 0; m.msg = null; } return; }
     if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + list.length) % list.length;
@@ -290,7 +294,8 @@ function menuKey(e) {
         }
         removeItem(state.player, id);
         m.msg = null;
-        m.cursor = Math.max(0, Math.min(m.cursor, Object.keys(state.player.inventory).length - 1));
+        const remaining = Object.keys(state.player.inventory).filter((iid) => ITEMS[iid] && !ITEMS[iid].material);
+        m.cursor = Math.max(0, Math.min(m.cursor, remaining.length - 1));
       } else {
         m.msg = 'この道具は戦闘中でないと使えない！';
       }
@@ -345,6 +350,13 @@ function menuKey(e) {
     if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + ids.length) % ids.length;
     else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % ids.length;
     else if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; }
+    return;
+  }
+  if (m.mode === 'craft') {
+    if (e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; m.msg = null; return; }
+    if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + CRAFT_RECIPES.length) % CRAFT_RECIPES.length;
+    else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % CRAFT_RECIPES.length;
+    else if (e.key === 'Enter' || e.key === ' ') craftItem(CRAFT_RECIPES[m.cursor].id);
   }
 }
 
@@ -373,8 +385,8 @@ function battleKey(e) {
   }
   const bm = state.battleMenu;
   if (bm.mode === 'main') {
-    if (e.key === 'ArrowUp') bm.cursor = (bm.cursor + 3) % 4;
-    else if (e.key === 'ArrowDown') bm.cursor = (bm.cursor + 1) % 4;
+    if (e.key === 'ArrowUp') bm.cursor = (bm.cursor + mainCommands.length - 1) % mainCommands.length;
+    else if (e.key === 'ArrowDown') bm.cursor = (bm.cursor + 1) % mainCommands.length;
     else if (e.key === 'Enter' || e.key === ' ') {
       if (bm.cursor === 0) battleCommandAttack();
       else if (bm.cursor === 1) {
@@ -384,7 +396,8 @@ function battleKey(e) {
         const avail = Object.keys(state.player.inventory).filter((id) => ITEMS[id] && ITEMS[id].usableInBattle && state.player.inventory[id] > 0);
         if (avail.length === 0) pushLog(b, '使えるどうぐがない！');
         else { bm.mode = 'item'; bm.cursor = 0; bm.itemList = avail; }
-      } else if (bm.cursor === 3) battleCommandFlee();
+      } else if (bm.cursor === 3) battleCommandDefend();
+      else if (bm.cursor === 4) battleCommandFlee();
     }
     return;
   }
@@ -579,7 +592,7 @@ function drawMenu() {
   }
   if (m.mode === 'item') {
     drawPanel(60, 20, 520, 300);
-    const list = Object.keys(state.player.inventory);
+    const list = Object.keys(state.player.inventory).filter((id) => ITEMS[id] && !ITEMS[id].material);
     if (list.length === 0) drawText(80, 40, 'どうぐを持っていない。', { font: '15px' });
     list.forEach((id, i) => {
       const item = ITEMS[id];
@@ -631,13 +644,14 @@ function drawMenu() {
       `しゅび力: ${playerDef(p)}`,
       `経験値: ${p.exp}  (つぎのレベルまで ${Math.max(0, expToReach(p.level + 1) - p.exp)})`,
       `ゴールド: ${p.gold}`,
+      `なかま: ${p.companion ? COMPANIONS[p.companion].name : 'いない'}`,
       `ぶき: ${p.weapon ? EQUIPMENT[p.weapon].name : 'なし'}`,
       `たて: ${p.shield ? EQUIPMENT[p.shield].name : 'なし'}`,
       `よろい: ${p.armor ? EQUIPMENT[p.armor].name : 'なし'}`,
       `アクセサリ: ${p.accessory ? EQUIPMENT[p.accessory].name : 'なし'}`,
     ];
-    lines.forEach((l, i) => drawText(80, 40 + i * 26, l, { font: '15px' }));
-    drawText(80, 352, 'Enterでもどる', { font: '12px', color: '#aaa' });
+    lines.forEach((l, i) => drawText(80, 38 + i * 24, l, { font: '15px' }));
+    drawText(80, 358, 'Enterでもどる', { font: '12px', color: '#aaa' });
     return;
   }
   if (m.mode === 'quest') {
@@ -667,6 +681,21 @@ function drawMenu() {
     const curId = ids[m.cursor];
     const curKnown = !!(state.flags.bestiary && state.flags.bestiary[curId]);
     drawText(80, 422, curKnown ? MONSTERS[curId].desc : 'まだ出会っていないモンスターだ。', { font: '12px', color: '#ffd54a' });
+    return;
+  }
+  if (m.mode === 'craft') {
+    drawPanel(40, 12, 560, 420);
+    drawText(60, 30, `アイテム合成　所持金:${state.player.gold}G`, { font: '15px', color: '#ffd54a' });
+    CRAFT_RECIPES.forEach((r, i) => {
+      const p = state.player;
+      const affordable = p.gold >= r.gold && craftHasMaterials(p, r);
+      const matText = Object.entries(r.materials).map(([id, qty]) => `${ITEMS[id].name} ${p.inventory[id] || 0}/${qty}`).join('　');
+      const y = 62 + i * 48;
+      drawText(60, y, (m.cursor === i ? '▶ ' : '　') + `${r.name}　${r.gold}G`, { font: '14px', color: affordable ? '#fff' : '#888' });
+      drawText(80, y + 20, matText, { font: '11px', color: '#aaa' });
+    });
+    if (m.msg) drawText(60, 62 + CRAFT_RECIPES.length * 48 + 6, m.msg, { font: '13px', color: '#ffd54a' });
+    drawText(60, 412, 'Enter:合成する　Esc:もどる', { font: '12px', color: '#aaa' });
   }
 }
 
@@ -736,6 +765,9 @@ function drawBattleScene() {
   drawText(220, 244, `${p.hp}/${p.maxHp}`, { font: '13px' });
   drawBar(30, 264, 180, 14, p.mp, p.maxMp, '#3a8fd4');
   drawText(220, 264, `${p.mp}/${p.maxMp}`, { font: '13px' });
+  if (p.companion) {
+    drawText(30, 284, `${COMPANIONS[p.companion].name}が加勢中！`, { font: '12px', color: '#7ad4ff' });
+  }
 
   drawPanel(20, 300, 380, 160);
   const visibleLog = b.log.slice(-5);

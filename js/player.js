@@ -35,6 +35,7 @@ function createNewPlayer(name) {
     ownedEquipment: ['sword_bronze'],
     inventory: { item_herb: 2, item_water: 1 },
     spells: [],
+    companion: null,
     map: 'town',
     x: 7,
     y: 9,

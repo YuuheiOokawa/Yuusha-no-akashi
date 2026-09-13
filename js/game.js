@@ -19,6 +19,8 @@ const state = {
     storyEnded: false, superbossDefeated: false,
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
+    kainQuestActive: false, swordFound: false, kainQuestDone: false,
+    bestiaryRewardGiven: false,
     killCounts: {}, bestiary: {}, visitedMaps: {},
   },
   dialogue: null,
@@ -217,6 +219,11 @@ function endBattleVictory() {
 
   if (!b.scripted) {
     state.flags.killCounts[b.monster.id] = (state.flags.killCounts[b.monster.id] || 0) + 1;
+    const dropSrc = MONSTERS[b.monster.id];
+    if (dropSrc.drop && Math.random() < dropSrc.drop.chance) {
+      addItem(p, dropSrc.drop.id, 1);
+      pushLog(b, `${ITEMS[dropSrc.drop.id].name}を手に入れた！`);
+    }
   }
 
   if (b.scripted === 'dragon') {
@@ -241,6 +248,14 @@ function endBattleVictory() {
       pushLog(b, '暁光の剣を手に入れた！');
     }
   }
+
+  const allSeen = Object.keys(MONSTERS).every((id) => state.flags.bestiary[id]);
+  if (allSeen && !state.flags.bestiaryRewardGiven) {
+    state.flags.bestiaryRewardGiven = true;
+    addOwnedEquipment(p, 'ring_hunter');
+    pushLog(b, 'モンスター図鑑がすべて埋まった！ 「狩人の指輪」を手に入れた！');
+  }
+
   b.turn = 'won';
 }
 
@@ -253,7 +268,12 @@ function endBattleDefeat() {
 function resolveMonsterTurnIfAlive() {
   const b = state.battle;
   if (b.monster.hp <= 0) { endBattleVictory(); return; }
+  if (state.player.companion) {
+    companionAttack(state, b);
+    if (b.monster.hp <= 0) { endBattleVictory(); return; }
+  }
   monsterTakeTurn(state, b);
+  b.defending = false;
   if (state.player.hp <= 0) { endBattleDefeat(); return; }
   applyStatusTicks(state, b);
   if (b.monster.hp <= 0) { endBattleVictory(); return; }
@@ -265,6 +285,13 @@ function resolveMonsterTurnIfAlive() {
 function battleCommandAttack() {
   const b = state.battle;
   playerAttack(state, b);
+  resolveMonsterTurnIfAlive();
+}
+
+function battleCommandDefend() {
+  const b = state.battle;
+  b.defending = true;
+  pushLog(b, `${state.player.name}は身を守っている。`);
   resolveMonsterTurnIfAlive();
 }
 
@@ -392,6 +419,27 @@ function flashShopMsg(msg) {
 }
 
 // ------------------------------------------------------------
+// アイテム合成
+// ------------------------------------------------------------
+function craftHasMaterials(p, recipe) {
+  return Object.entries(recipe.materials).every(([id, qty]) => (p.inventory[id] || 0) >= qty);
+}
+
+function craftItem(recipeId) {
+  const p = state.player;
+  const recipe = CRAFT_RECIPES.find((r) => r.id === recipeId);
+  if (!recipe) return;
+  if (p.gold < recipe.gold || !craftHasMaterials(p, recipe)) {
+    state.menu.msg = '材料かゴールドが足りない！';
+    return;
+  }
+  p.gold -= recipe.gold;
+  Object.entries(recipe.materials).forEach(([id, qty]) => removeItem(p, id, qty));
+  addOwnedEquipment(p, recipe.result);
+  state.menu.msg = `${EQUIPMENT[recipe.result].name}を合成した！`;
+}
+
+// ------------------------------------------------------------
 // セーブ / ロード (3スロット)
 // ------------------------------------------------------------
 function slotKey(slot) { return SAVE_KEY_PREFIX + slot; }
@@ -439,8 +487,9 @@ if (typeof module !== 'undefined') {
     state, tileWalkable, npcAt, chestAt, movePlayer, doWarp, openChest, interactNpc,
     startScriptedBattle, pickWeighted, triggerRandomEncounter,
     endBattleVictory, endBattleDefeat, resolveMonsterTurnIfAlive,
-    battleCommandAttack, battleCommandSpell, battleCommandItem, battleCommandFlee, closeBattle,
+    battleCommandAttack, battleCommandSpell, battleCommandItem, battleCommandDefend, battleCommandFlee, closeBattle,
     openShop, shopBuyList, shopSellList, itemDef, shopBuy, shopSell,
+    craftHasMaterials, craftItem,
     saveGame, loadGame, listSaveSlots, hasSaveData, migrateLegacySave,
     triggerEnding, showDialogue, showConfirm,
   };

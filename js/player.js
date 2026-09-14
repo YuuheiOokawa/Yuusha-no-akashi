@@ -36,6 +36,9 @@ function createNewPlayer(name) {
     inventory: { item_herb: 2, item_water: 1 },
     spells: [],
     companion: null,
+    job: 'warrior',
+    jobLevels: Object.keys(JOBS).reduce((acc, id) => { acc[id] = { level: 1, exp: 0 }; return acc; }, {}),
+    masteredJobs: [],
     map: 'town',
     x: 7,
     y: 9,
@@ -47,7 +50,9 @@ function playerAtk(p) {
   const base = statsForLevel(p.level).baseAtk;
   const w = p.weapon ? EQUIPMENT[p.weapon] : null;
   const acc = p.accessory ? EQUIPMENT[p.accessory] : null;
-  return base + (w && w.atk ? w.atk : 0) + (acc && acc.atk ? acc.atk : 0);
+  const jobMod = p.job && JOBS[p.job] ? JOBS[p.job].atkMod : 1;
+  const masteryBonus = (p.masteredJobs || []).length * 2;
+  return Math.round(base * jobMod) + (w && w.atk ? w.atk : 0) + (acc && acc.atk ? acc.atk : 0) + masteryBonus;
 }
 
 function playerDef(p) {
@@ -55,7 +60,37 @@ function playerDef(p) {
   const s = p.shield ? EQUIPMENT[p.shield] : null;
   const a = p.armor ? EQUIPMENT[p.armor] : null;
   const acc = p.accessory ? EQUIPMENT[p.accessory] : null;
-  return base + (s && s.def ? s.def : 0) + (a && a.def ? a.def : 0) + (acc && acc.def ? acc.def : 0);
+  const jobMod = p.job && JOBS[p.job] ? JOBS[p.job].defMod : 1;
+  const masteryBonus = (p.masteredJobs || []).length * 2;
+  return Math.round(base * jobMod) + (s && s.def ? s.def : 0) + (a && a.def ? a.def : 0) + (acc && acc.def ? acc.def : 0) + masteryBonus;
+}
+
+// 転職: 現在の職業を切り替え、MPの最大値を新しい職業の倍率で再計算する
+function switchJob(p, jobId) {
+  const job = JOBS[jobId];
+  if (!job || p.job === jobId) return;
+  p.job = jobId;
+  const base = statsForLevel(p.level);
+  p.maxMp = Math.round(base.maxMp * job.mpMod);
+  p.mp = Math.min(p.mp, p.maxMp);
+}
+
+// 職業経験値を加算し、職業レベルが上がったらそのぶんを返す。マスター時はmasteredを返す
+function gainJobExp(p, amount) {
+  if (!p.job) return null;
+  const jd = p.jobLevels[p.job];
+  if (!jd || jd.level >= JOB_MAX_LEVEL) return null;
+  jd.exp += amount;
+  let leveled = false;
+  while (jd.level < JOB_MAX_LEVEL && jd.exp >= jobExpToReach(jd.level + 1)) {
+    jd.level += 1;
+    leveled = true;
+  }
+  if (jd.level >= JOB_MAX_LEVEL && !p.masteredJobs.includes(p.job)) {
+    p.masteredJobs.push(p.job);
+    return { leveled, mastered: true };
+  }
+  return leveled ? { leveled, mastered: false } : null;
 }
 
 function refreshSpells(p) {
@@ -72,8 +107,9 @@ function gainExp(p, amount) {
     const st = statsForLevel(p.level);
     const prevMax = p.maxHp;
     const prevMaxMp = p.maxMp;
+    const jobMod = p.job && JOBS[p.job] ? JOBS[p.job].mpMod : 1;
     p.maxHp = st.maxHp;
-    p.maxMp = st.maxMp;
+    p.maxMp = Math.round(st.maxMp * jobMod);
     p.hp += (p.maxHp - prevMax);
     p.mp += (p.maxMp - prevMaxMp);
     const before = new Set(p.spells);
@@ -115,5 +151,5 @@ function removeOwnedEquipment(p, equipId) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { statsForLevel, expToReach, createNewPlayer, playerAtk, playerDef, gainExp, fullHeal, addItem, removeItem, refreshSpells, addOwnedEquipment, removeOwnedEquipment };
+  module.exports = { statsForLevel, expToReach, createNewPlayer, playerAtk, playerDef, gainExp, fullHeal, addItem, removeItem, refreshSpells, addOwnedEquipment, removeOwnedEquipment, switchJob, gainJobExp };
 }

@@ -527,14 +527,34 @@ function draw() {
   else if (state.screen === 'BATTLE') drawBattleUI();
 }
 
-function drawTitle() {
-  ctx.fillStyle = '#0a1428';
+// タイトル・スロット選択・エンディングで共有する夜空背景(グラデーション+星の瞬き)
+function drawStarrySky(topColor, bottomColor) {
+  const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+  grad.addColorStop(0, topColor);
+  grad.addColorStop(1, bottomColor);
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-  drawText(CANVAS_W / 2, 120, '勇者の証', { align: 'center', font: 'bold 40px', color: '#ffd54a' });
-  drawText(CANVAS_W / 2, 175, '～ 竜の洞窟の伝説 ～', { align: 'center', font: '16px', color: '#cfd8ff' });
+  for (let i = 0; i < 36; i++) {
+    const sx = (i * 53 + 17) % CANVAS_W;
+    const sy = (i * 97 + 31) % CANVAS_H;
+    const tw = (Math.sin(state.frame * 0.05 + i) + 1) / 2;
+    ctx.fillStyle = `rgba(255,255,255,${(0.15 + tw * 0.35).toFixed(2)})`;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+}
+
+function drawTitle() {
+  drawStarrySky('#060a1e', '#141c3c');
+  drawPanel(CANVAS_W / 2 - 230, 46, 460, 128);
+  drawText(CANVAS_W / 2, 84, '勇者の証', { align: 'center', font: 'bold 40px', color: '#ffd54a' });
+  drawText(CANVAS_W / 2, 138, '～ 竜の洞窟の伝説 ～', { align: 'center', font: '16px', color: '#cfd8ff' });
   const opts = titleOptions();
+  const boxH = opts.length * 40 + 26;
+  drawPanel(CANVAS_W / 2 - 140, 250, 280, boxH);
   opts.forEach((opt, i) => {
-    drawText(CANVAS_W / 2, 300 + i * 40, (state.titleCursor === i ? '▶ ' : '　') + opt, { align: 'center', font: '22px', color: '#fff' });
+    const selected = state.titleCursor === i;
+    const arrow = selected && Math.floor(state.frame / 15) % 2 === 0 ? '▶ ' : '　';
+    drawText(CANVAS_W / 2, 278 + i * 40, arrow + opt, { align: 'center', font: '22px', color: selected ? '#ffd54a' : '#fff' });
   });
   if (Math.floor(state.frame / 30) % 2 === 0) {
     drawText(CANVAS_W / 2, 440, '矢印キーで選択・Enterで決定', { align: 'center', font: '13px', color: '#8899cc' });
@@ -542,8 +562,7 @@ function drawTitle() {
 }
 
 function drawSlotSelect() {
-  ctx.fillStyle = '#0a1428';
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  drawStarrySky('#0a1428', '#1a2450');
   const s = state.slotSelect;
   drawText(CANVAS_W / 2, 60, s.mode === 'new' ? 'どのスロットに はじめますか？' : 'どのスロットを つづけますか？', { align: 'center', font: 'bold 20px', color: '#ffd54a' });
   const slots = listSaveSlots();
@@ -978,8 +997,7 @@ function drawBattleUI() {
 }
 
 function drawEnding() {
-  ctx.fillStyle = '#0a0a2a';
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  drawStarrySky('#0a0a2a', '#1c1040');
   drawText(CANVAS_W / 2, 90, '魔竜王ガロズを倒した！', { align: 'center', font: 'bold 24px', color: '#ffd54a' });
   const lines = [
     '光の聖剣が、闇に染まった竜の心を打ち砕いた。',
@@ -988,7 +1006,7 @@ function drawEnding() {
   ];
   const extra = state.endingExtraLines || [];
   if (extra.length > 0) { lines.push(''); extra.forEach((l) => lines.push(l)); }
-  lines.push('', `勇者${state.player.name}の物語は、こうして幕を閉じる……`, '', '- おわり -');
+  lines.push('', `${state.player.name}の物語は、こうして幕を閉じる……`, '', '- おわり -');
   const lineH = lines.length > 10 ? 24 : 28;
   lines.forEach((l, i) => drawText(CANVAS_W / 2, 150 + i * lineH, l, { align: 'center', font: '16px' }));
   if (Math.floor(state.frame / 30) % 2 === 0) {

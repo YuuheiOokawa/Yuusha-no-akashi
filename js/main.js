@@ -2,7 +2,7 @@
 // main.js - 描画・入力・メインループ
 // ============================================================
 
-const topOptions = ['どうぐ', '合成', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', 'ステータス', 'セーブ', 'とじる'];
+const topOptions = ['どうぐ', '合成', 'てんしょく', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', 'ステータス', 'セーブ', 'とじる'];
 const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'ぼうぎょ', 'にげる'];
 
 // 文字がゆっくり表示されるスピード(1フレームあたりの文字数)
@@ -174,6 +174,7 @@ function defaultFlags() {
     kainQuestActive: false, swordFound: false, kainQuestDone: false, kainTalkCount: 0,
     bestiaryRewardGiven: false,
     loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
+    townReputation: 0, reputationRankSeen: 0, grottoClearsCounted: 0,
     killCounts: {}, bestiary: {}, visitedMaps: {},
   };
 }
@@ -193,9 +194,18 @@ function continueGame(slot) {
   if (!state.player.ownedEquipment) state.player.ownedEquipment = [state.player.weapon].filter(Boolean);
   if (state.player.accessory === undefined) state.player.accessory = null;
   if (state.player.companion === undefined) state.player.companion = null;
+  if (!state.player.job) state.player.job = 'warrior';
+  if (!state.player.jobLevels) {
+    state.player.jobLevels = Object.keys(JOBS).reduce((acc, id) => { acc[id] = { level: 1, exp: 0 }; return acc; }, {});
+  }
+  if (!state.player.masteredJobs) state.player.masteredJobs = [];
   state.flags = Object.assign(defaultFlags(), data.flags || {});
   state.currentSlot = slot;
   state.screen = 'FIELD';
+  // 不思議な洞窟の状態は保存されないので、その中でセーブされていた場合は村へ戻す
+  if (state.player.map === 'grotto') {
+    state.player.map = 'town'; state.player.x = 7; state.player.y = 9; state.player.dir = 'up';
+  }
 }
 
 function titleKey(e) {
@@ -283,6 +293,7 @@ function menuKey(e) {
       const choice = topOptions[m.cursor];
       if (choice === 'どうぐ') { m.mode = 'item'; m.cursor = 0; m.msg = null; }
       else if (choice === '合成') { m.mode = 'craft'; m.cursor = 0; m.msg = null; }
+      else if (choice === 'てんしょく') { m.mode = 'job'; m.cursor = 0; m.msg = null; }
       else if (choice === 'そうび') { m.mode = 'equipSlot'; m.cursor = 0; }
       else if (choice === 'じゅもん') {
         if (state.player.spells.length > 0) { m.mode = 'spell'; m.cursor = 0; m.msg = null; }
@@ -303,6 +314,12 @@ function menuKey(e) {
     else if (e.key === 'Enter' || e.key === ' ') {
       const id = list[m.cursor];
       const item = ITEMS[id];
+      if (item.treasureMap) {
+        enterRandomDungeon(id);
+        removeItem(state.player, id);
+        state.menu = null;
+        return;
+      }
       if (item.usableInField) {
         const result = item.effect(state.player);
         if (result === '__WARP_TOWN__') {
@@ -375,6 +392,18 @@ function menuKey(e) {
     if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + CRAFT_RECIPES.length) % CRAFT_RECIPES.length;
     else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % CRAFT_RECIPES.length;
     else if (e.key === 'Enter' || e.key === ' ') craftItem(CRAFT_RECIPES[m.cursor].id);
+    return;
+  }
+  if (m.mode === 'job') {
+    const jobIds = Object.keys(JOBS);
+    if (e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; m.msg = null; return; }
+    if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + jobIds.length) % jobIds.length;
+    else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % jobIds.length;
+    else if (e.key === 'Enter' || e.key === ' ') {
+      const id = jobIds[m.cursor];
+      switchJob(state.player, id);
+      m.msg = `${JOBS[id].name}に転職した！`;
+    }
   }
 }
 
@@ -651,25 +680,27 @@ function drawMenu() {
     return;
   }
   if (m.mode === 'status') {
-    drawPanel(60, 20, 520, 360);
+    drawPanel(60, 16, 520, 384);
     const p = state.player;
+    const repIdx = reputationRankIndex(state.flags.townReputation || 0);
     const lines = [
       `名前: ${p.name}`,
-      `レベル: ${p.level}`,
+      `レベル: ${p.level}　しょくぎょう: ${JOBS[p.job].name} Lv${p.jobLevels[p.job].level}`,
       `HP: ${p.hp}/${p.maxHp}`,
       `MP: ${p.mp}/${p.maxMp}`,
       `こうげき力: ${playerAtk(p)}`,
       `しゅび力: ${playerDef(p)}`,
       `経験値: ${p.exp}  (つぎのレベルまで ${Math.max(0, expToReach(p.level + 1) - p.exp)})`,
       `ゴールド: ${p.gold}`,
+      `村の評判: ${REPUTATION_RANKS[repIdx].name} (${state.flags.townReputation || 0}pt)`,
       `なかま: ${p.companion ? COMPANIONS[p.companion].name : 'いない'}`,
       `ぶき: ${p.weapon ? EQUIPMENT[p.weapon].name : 'なし'}`,
       `たて: ${p.shield ? EQUIPMENT[p.shield].name : 'なし'}`,
       `よろい: ${p.armor ? EQUIPMENT[p.armor].name : 'なし'}`,
       `アクセサリ: ${p.accessory ? EQUIPMENT[p.accessory].name : 'なし'}`,
     ];
-    lines.forEach((l, i) => drawText(80, 38 + i * 24, l, { font: '15px' }));
-    drawText(80, 358, 'Enterでもどる', { font: '12px', color: '#aaa' });
+    lines.forEach((l, i) => drawText(80, 34 + i * 24, l, { font: '15px' }));
+    drawText(80, 386, 'Enterでもどる', { font: '12px', color: '#aaa' });
     return;
   }
   if (m.mode === 'quest') {
@@ -714,6 +745,23 @@ function drawMenu() {
     });
     if (m.msg) drawText(60, 62 + CRAFT_RECIPES.length * 48 + 6, m.msg, { font: '13px', color: '#ffd54a' });
     drawText(60, 412, 'Enter:合成する　Esc:もどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'job') {
+    drawPanel(60, 20, 520, 300);
+    const jobIds = Object.keys(JOBS);
+    const p = state.player;
+    jobIds.forEach((id, i) => {
+      const job = JOBS[id];
+      const jd = p.jobLevels[id];
+      const mastered = p.masteredJobs.includes(id) ? ' ★マスター' : '';
+      const current = p.job === id ? ' (現在)' : '';
+      drawText(80, 40 + i * 36, (m.cursor === i ? '▶ ' : '　') + `${job.name}　Lv${jd.level}${mastered}${current}`, { font: '15px' });
+    });
+    const curJob = JOBS[jobIds[m.cursor]];
+    drawText(80, 40 + jobIds.length * 36 + 10, curJob.desc, { font: '12px', color: '#aaa' });
+    if (m.msg) drawText(80, 270, m.msg, { font: '13px', color: '#ffd54a' });
+    drawText(80, 290, 'Enter:てんしょくする　Esc:もどる', { font: '12px', color: '#aaa' });
   }
 }
 

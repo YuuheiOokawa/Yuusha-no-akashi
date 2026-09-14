@@ -8,12 +8,14 @@ const CRIT_CHANCE = 0.08;
 const CRIT_MULT = 1.75;
 function rollCrit() { return Math.random() < CRIT_CHANCE; }
 
-function createBattle(monsterId, isBoss) {
+function createBattle(monsterId, isBoss, overrides) {
   const src = MONSTERS[monsterId];
+  const ov = overrides || {};
   return {
     monster: {
-      id: src.id, name: src.name, glyph: src.glyph, color: src.color,
-      hp: src.hp, maxHp: src.hp, atk: src.atk, def: src.def, exp: src.exp, gold: src.gold,
+      id: src.id, name: ov.name || src.name, glyph: src.glyph, color: src.color,
+      hp: ov.hp || src.hp, maxHp: ov.hp || src.hp, atk: ov.atk || src.atk, def: ov.def || src.def,
+      exp: ov.exp || src.exp, gold: ov.gold || src.gold,
       boss: !!isBoss,
     },
     log: [],

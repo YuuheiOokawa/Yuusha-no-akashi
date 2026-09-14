@@ -166,6 +166,56 @@ setRect(towerGrid, 7, 3, 8, 7, TILES.FLOOR); // 最上階への階段
 setRect(towerGrid, 4, 1, 11, 4, TILES.FLOOR); // 最上階 (大魔導士の間)
 
 // ============================================================
+// 不思議な地図から生成するランダムダンジョン
+// ============================================================
+const GROTTO_RANKS = [
+  {
+    id: 'common', name: 'ふつうの地図', mapItem: 'map_common',
+    monsters: [{ id: 'ghost', weight: 4 }, { id: 'scorpion', weight: 4 }, { id: 'skeleton', weight: 3 }, { id: 'bat', weight: 3 }],
+    boss: 'golem', bossMult: 1.15, goldMult: 1,
+  },
+  {
+    id: 'rare', name: 'めずらしい地図', mapItem: 'map_rare',
+    monsters: [{ id: 'golem', weight: 3 }, { id: 'dark_knight', weight: 4 }, { id: 'thief', weight: 3 }, { id: 'skeleton', weight: 3 }],
+    boss: 'iron_golem', bossMult: 1.4, goldMult: 2,
+  },
+  {
+    id: 'legendary', name: '伝説の地図', mapItem: 'map_legendary',
+    monsters: [{ id: 'iron_golem', weight: 3 }, { id: 'dark_knight', weight: 3 }, { id: 'arcane_sentinel', weight: 3 }, { id: 'tower_wraith', weight: 3 }],
+    boss: 'arcane_sentinel', bossMult: 1.7, goldMult: 3.5,
+  },
+];
+
+// 「酔歩」アルゴリズムで、入口から必ずたどり着ける1本道の洞窟を生成する
+function generateGrottoGrid(rankId) {
+  const rank = GROTTO_RANKS.find((r) => r.id === rankId) || GROTTO_RANKS[0];
+  const w = 16, h = 16;
+  const grid = buildMap(w, h, TILES.WALL);
+  let x = Math.floor(w / 2), y = h - 2;
+  grid[y][x] = TILES.FLOOR;
+  const path = [{ x, y }];
+  const steps = 90 + GROTTO_RANKS.findIndex((r) => r.id === rank.id) * 25;
+  const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  for (let i = 0; i < steps; i++) {
+    const [dx, dy] = dirs[Math.floor(Math.random() * dirs.length)];
+    x = Math.min(w - 2, Math.max(1, x + dx));
+    y = Math.min(h - 2, Math.max(1, y + dy));
+    if (grid[y][x] !== TILES.FLOOR) {
+      grid[y][x] = TILES.FLOOR;
+      path.push({ x, y });
+    }
+  }
+  const entrance = { x: Math.floor(w / 2), y: h - 2 };
+  grid[entrance.y][entrance.x] = TILES.DOOR;
+  const bossPos = path[path.length - 1];
+  const chestPos = path[Math.floor(path.length * 0.5)] || entrance;
+  return {
+    rankId: rank.id, grid, width: w, height: h, entrance, bossPos, chestPos,
+    encounter: { rate: 0.1, table: rank.monsters },
+  };
+}
+
+// ============================================================
 // マップ定義
 // ============================================================
 const MAPS = {
@@ -231,6 +281,13 @@ const MAPS = {
     ] },
     startX: 7, startY: 17, startDir: 'up',
     bgColor: '#241830',
+  },
+  grotto: {
+    id: 'grotto', name: '不思議な洞窟',
+    get grid() { return state.randomDungeon.grid; },
+    get encounter() { return state.randomDungeon.encounter; },
+    startX: 8, startY: 14, startDir: 'up',
+    bgColor: '#1a2418',
   },
 };
 
@@ -372,7 +429,7 @@ const NPCS = [
         state.flags.dogQuestDone = true;
         addItem(state.player, 'item_hi_herb', 1);
         state.player.gold += 30;
-        return ['おお、ポチ！ よかった、無事だったんだね！', 'お礼に上級やくそうと30ゴールドを渡すよ。', '本当にありがとう、勇者様。'];
+        return ['おお、ポチ！ よかった、無事だったんだね！', 'お礼に上級やくそうと30ゴールドを渡すよ。', '本当にありがとう、勇者様。', ...addReputation(10)];
       }
       if (state.flags.dogQuestActive) {
         return ['ポチがまだ見つからないの……', 'リアーナ平原のどこかにいると思うんだけど。'];
@@ -445,7 +502,7 @@ const NPCS = [
         state.flags.wolfQuestDone = true;
         state.player.gold += 50;
         addItem(state.player, 'item_hi_herb', 2);
-        return ['おお、はぐれ狼を5匹も討伐してくれたのか！', 'これは礼だ、受け取ってくれ。', '(50ゴールドと上級やくそうを2つ手に入れた！)'];
+        return ['おお、はぐれ狼を5匹も討伐してくれたのか！', 'これは礼だ、受け取ってくれ。', '(50ゴールドと上級やくそうを2つ手に入れた！)', ...addReputation(10)];
       }
       if (state.flags.wolfQuestActive) {
         return [`まだ平原に狼が出るらしい。(討伐数: ${kills}/5)`, '引き続き頼めるか？'];
@@ -463,7 +520,7 @@ const NPCS = [
       if (state.flags.locketFound) {
         state.flags.locketQuestDone = true;
         addOwnedEquipment(state.player, 'locket_memory');
-        return ['まあ、これは……！ 亡き夫の形見のロケット！', '見つけてくれて本当にありがとう。', 'お礼にこのお守りを受け取っておくれ。', '(思い出のロケットを手に入れた！)'];
+        return ['まあ、これは……！ 亡き夫の形見のロケット！', '見つけてくれて本当にありがとう。', 'お礼にこのお守りを受け取っておくれ。', '(思い出のロケットを手に入れた！)', ...addReputation(10)];
       }
       if (state.flags.locketQuestActive) {
         return ['ロケットは囁きの森のどこかに落ちているはずなんじゃ……'];
@@ -492,7 +549,7 @@ const NPCS = [
       if (state.flags.swordFound) {
         state.flags.kainQuestDone = true;
         state.player.companion = 'kain';
-        return ['おお、これは俺の剣だ！ 本当にありがとう！', 'この恩は戦いで返そう。俺を仲間にしてくれ！', '(カインが仲間になった！)'];
+        return ['おお、これは俺の剣だ！ 本当にありがとう！', 'この恩は戦いで返そう。俺を仲間にしてくれ！', '(カインが仲間になった！)', ...addReputation(10)];
       }
       if (state.flags.kainQuestActive) {
         return ['まだ剣は見つからないか……', '囁きの森のどこかで盗賊にやられたんだ。'];
@@ -542,6 +599,11 @@ const NPCS = [
       ]);
     },
   },
+  {
+    id: 'mapdealer', map: 'town2', x: 2, y: 6, glyph: '図', color: '#c9a227',
+    shop: 'mapshop',
+    lines() { return ['不思議な地図をお求めかい？', '地図が導く先には、誰も知らない洞窟が広がっているらしい。']; },
+  },
 ];
 
 // ============================================================
@@ -558,6 +620,7 @@ function readLoreStone(state, id, text) {
     addOwnedEquipment(state.player, 'pendant_sage');
     lines.push('……すべての石版を読み解いた。');
     lines.push('古の知恵が身を包み、「賢者の証」を手に入れた！');
+    lines.push(...addReputation(10));
   }
   return lines;
 }
@@ -582,6 +645,37 @@ const COMPANIONS = {
     atk(level) { return 6 + level * 2; },
   },
 };
+
+// ============================================================
+// 職業 (てんしょく) - 職業ごとにステータス倍率と職業レベルを持つ
+// ============================================================
+const JOBS = {
+  warrior: { id: 'warrior', name: 'せんし', atkMod: 1.25, defMod: 1.15, mpMod: 0.5, desc: '守りとちからに優れた戦士。' },
+  mage: { id: 'mage', name: 'まほうつかい', atkMod: 0.85, defMod: 0.85, mpMod: 1.6, desc: '攻撃魔法を得意とする魔法使い。' },
+  priest: { id: 'priest', name: 'そうりょ', atkMod: 0.9, defMod: 1.0, mpMod: 1.3, desc: '回復魔法を得意とする僧侶。' },
+  thief: { id: 'thief', name: 'とうぞく', atkMod: 1.1, defMod: 0.9, mpMod: 0.8, desc: 'すばやさに優れ、逃げ足も速い盗賊。' },
+  monk: { id: 'monk', name: 'ぶとうか', atkMod: 1.15, defMod: 1.0, mpMod: 0.6, desc: '素手での攻撃を極めた武闘家。' },
+};
+const JOB_MAX_LEVEL = 20;
+function jobExpToReach(lv) {
+  if (lv <= 1) return 0;
+  return Math.floor(Math.pow(lv, 2.1) * 6);
+}
+
+// ============================================================
+// 村の評判 - サイドクエストやボス撃破で評判ポイントが貯まる
+// ============================================================
+const REPUTATION_RANKS = [
+  { threshold: 0, name: '駆け出しの村' },
+  { threshold: 20, name: '知られはじめた村', reward: { gold: 100 } },
+  { threshold: 50, name: '評判の村', reward: { equip: 'crown_hero' } },
+  { threshold: 80, name: '伝説の村', reward: { equip: 'crown_legend' } },
+];
+function reputationRankIndex(points) {
+  let idx = 0;
+  REPUTATION_RANKS.forEach((r, i) => { if (points >= r.threshold) idx = i; });
+  return idx;
+}
 
 // ============================================================
 // ゲーム開始時のオープニング (さいしょから、のみ表示)
@@ -640,6 +734,10 @@ const SHOPS = {
     name: 'フェルン魔法店',
     items: ['item_herb', 'item_hi_herb', 'item_water', 'item_antidote', 'item_elixir', 'item_scroll', 'item_scroll_fire'],
   },
+  mapshop: {
+    name: '地図商人の露店',
+    items: ['map_common', 'map_rare', 'map_legendary'],
+  },
 };
 
 // ============================================================
@@ -669,6 +767,8 @@ const EQUIPMENT = {
   twilight_charm: { id: 'twilight_charm', name: '黄昏のお守り', type: 'accessory', atk: 10, def: 10, price: 0 },
   ring_hunter: { id: 'ring_hunter', name: '狩人の指輪', type: 'accessory', atk: 8, def: 8, price: 0 },
   pendant_sage: { id: 'pendant_sage', name: '賢者の証', type: 'accessory', atk: 4, def: 4, price: 0 },
+  crown_hero: { id: 'crown_hero', name: '名誉の証', type: 'accessory', atk: 6, def: 6, price: 0 },
+  crown_legend: { id: 'crown_legend', name: '伝説の証', type: 'accessory', atk: 12, def: 12, price: 0 },
 };
 
 // ============================================================
@@ -714,12 +814,23 @@ const ITEMS = {
   mat_golem_core: { id: 'mat_golem_core', name: 'ゴーレムの核', price: 20, material: true, usableInBattle: false, usableInField: false },
   mat_dark_shard: { id: 'mat_dark_shard', name: '黒騎士の欠片', price: 25, material: true, usableInBattle: false, usableInField: false },
   mat_mimic_fang: { id: 'mat_mimic_fang', name: 'ミミックの牙', price: 30, material: true, usableInBattle: false, usableInField: false },
+  map_common: {
+    id: 'map_common', name: 'ふつうの地図', price: 50, usableInBattle: false, usableInField: true, treasureMap: 'common',
+  },
+  map_rare: {
+    id: 'map_rare', name: 'めずらしい地図', price: 200, usableInBattle: false, usableInField: true, treasureMap: 'rare',
+  },
+  map_legendary: {
+    id: 'map_legendary', name: '伝説の地図', price: 600, usableInBattle: false, usableInField: true, treasureMap: 'legendary',
+  },
 };
 
 // ============================================================
 // アイテム合成レシピ
 // ============================================================
 const CRAFT_RECIPES = [
+  { id: 'brew_hi_herb', name: '上級やくそう', result: 'item_hi_herb', resultQty: 2, gold: 10, materials: { item_herb: 3 } },
+  { id: 'brew_elixir', name: 'エリクサー', result: 'item_elixir', resultQty: 1, gold: 60, materials: { item_hi_herb: 2, item_water: 2 } },
   { id: 'fang_ring', name: '牙の指輪', result: 'fang_ring', gold: 30, materials: { mat_wolf_fang: 3, mat_slime_gel: 2 } },
   { id: 'ghost_charm', name: '亡霊のお守り', result: 'ghost_charm', gold: 50, materials: { mat_ghost_dust: 3, mat_bat_wing: 2 } },
   { id: 'armor_golemplate', name: '巨人の鎧', result: 'armor_golemplate', gold: 120, materials: { mat_golem_core: 2, mat_bone: 3 } },
@@ -794,5 +905,7 @@ if (typeof module !== 'undefined') {
     NPCS, SHOPS, EQUIPMENT, ITEMS, SPELLS, MONSTERS, SIDE_QUESTS, COMPANIONS, CRAFT_RECIPES,
     OPENING_STORY, MAP_FIRST_VISIT_HINTS,
     townStage, townGridForStage, TOWN_GRIDS_BY_STAGE, TOWN_BG_COLORS, mainQuestStageText,
+    GROTTO_RANKS, generateGrottoGrid, JOBS, JOB_MAX_LEVEL, jobExpToReach,
+    REPUTATION_RANKS, reputationRankIndex,
   };
 }

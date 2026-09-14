@@ -22,6 +22,7 @@ const state = {
     kainQuestActive: false, swordFound: false, kainQuestDone: false, kainTalkCount: 0,
     bestiaryRewardGiven: false,
     loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
+    townReputation: 0, reputationRankSeen: 0, grottoClearsCounted: 0,
     killCounts: {}, bestiary: {}, visitedMaps: {},
   },
   dialogue: null,
@@ -33,6 +34,7 @@ const state = {
   frame: 0,
   lastMoveAt: 0,
   endingExtraLines: [],
+  randomDungeon: null,
 };
 
 // ------------------------------------------------------------
@@ -63,6 +65,28 @@ function showConfirm(rawLines, onDone) {
   rawLines.forEach((line) => wrapJapanese(line, 20).forEach((w) => wrapped.push(w)));
   state.confirm = { lines: wrapped, cursor: 0, onDone };
   state.screen = 'CONFIRM';
+}
+
+// 村の評判ポイントを加算する。ランクが上がったら、そのお祝いメッセージの
+// 行配列を返す(呼び出し側が自分の表示中のダイアログ/ログに追加できるように)
+function addReputation(points) {
+  state.flags.townReputation = (state.flags.townReputation || 0) + points;
+  const idx = reputationRankIndex(state.flags.townReputation);
+  if (idx <= (state.flags.reputationRankSeen || 0)) return [];
+  state.flags.reputationRankSeen = idx;
+  const rank = REPUTATION_RANKS[idx];
+  const lines = [`村の評判が「${rank.name}」に上がった！`];
+  if (rank.reward) {
+    if (rank.reward.gold) {
+      state.player.gold += rank.reward.gold;
+      lines.push(`ごほうびとして${rank.reward.gold}ゴールドを受け取った！`);
+    }
+    if (rank.reward.equip) {
+      addOwnedEquipment(state.player, rank.reward.equip);
+      lines.push(`「${EQUIPMENT[rank.reward.equip].name}」を手に入れた！`);
+    }
+  }
+  return lines;
 }
 
 // ------------------------------------------------------------
@@ -147,6 +171,48 @@ function openChest(chest) {
   showDialogue([msg], () => { state.screen = 'FIELD'; });
 }
 
+// ------------------------------------------------------------
+// 不思議な地図から生成するランダムダンジョン
+// ------------------------------------------------------------
+function enterRandomDungeon(itemId) {
+  const item = ITEMS[itemId];
+  const rank = item && GROTTO_RANKS.find((r) => r.mapItem === itemId);
+  if (!rank) return;
+  const dungeon = generateGrottoGrid(rank.id);
+  state.randomDungeon = dungeon;
+
+  // 前回この地図で生成したチェスト/ボスを消してから、新しいものを配置する
+  for (let i = CHESTS.length - 1; i >= 0; i--) { if (CHESTS[i].id.startsWith('grotto_')) CHESTS.splice(i, 1); }
+  for (let i = SCRIPTED_ENCOUNTERS.length - 1; i >= 0; i--) { if (SCRIPTED_ENCOUNTERS[i].id.startsWith('grotto_')) SCRIPTED_ENCOUNTERS.splice(i, 1); }
+
+  const instanceId = Date.now();
+  const bossSrc = MONSTERS[rank.boss];
+  const bossOverrides = {
+    hp: Math.round(bossSrc.hp * rank.bossMult),
+    atk: Math.round(bossSrc.atk * rank.bossMult),
+    def: Math.round(bossSrc.def * rank.bossMult),
+    exp: Math.round(bossSrc.exp * rank.bossMult),
+    gold: Math.round(bossSrc.gold * rank.bossMult),
+  };
+  SCRIPTED_ENCOUNTERS.push({
+    id: `grotto_boss_${instanceId}`, map: 'grotto', x: dungeon.bossPos.x, y: dungeon.bossPos.y,
+    monster: rank.boss, flag: `grottoBossDefeated_${instanceId}`, overrides: bossOverrides,
+    introLines: ['地図に描かれた、最も深い場所にたどり着いた……', '何かが潜んでいる気配がする！'],
+  });
+  CHESTS.push({
+    id: `grotto_chest_${instanceId}`, map: 'grotto', x: dungeon.chestPos.x, y: dungeon.chestPos.y,
+    item: null, gold: Math.round(60 * rank.goldMult),
+  });
+  WARPS[`grotto:${dungeon.entrance.x}:${dungeon.entrance.y}`] = { map: 'town', x: 7, y: 9, dir: 'up' };
+
+  state.player.map = 'grotto';
+  state.player.x = dungeon.entrance.x;
+  state.player.y = dungeon.entrance.y;
+  state.player.dir = 'up';
+  state.screen = 'FIELD';
+  showDialogue(['地図の示す場所に足を踏み入れると、見知らぬ洞窟が広がっていた……', '入口に戻れば、いつでも村へ帰れるようだ。'], () => { state.screen = 'FIELD'; });
+}
+
 function interactNpc(npc) {
   if (npc.id === 'elder' && state.flags.bossDefeated && !state.flags.storyEnded) {
     showConfirm(['ここで物語を終えますか？', '（いつでも話しかけ直せます）'], (yes) => {
@@ -182,7 +248,7 @@ function interactNpc(npc) {
 // ------------------------------------------------------------
 function startScriptedBattle(entry) {
   showDialogue(entry.introLines, () => {
-    state.battle = createBattle(entry.monster, true);
+    state.battle = createBattle(entry.monster, true, entry.overrides);
     state.flags.bestiary[entry.monster] = true;
     state.battle.scripted = entry.id;
     state.battle.log.push(`${state.battle.monster.name}があらわれた！`);
@@ -230,6 +296,7 @@ function endBattleVictory() {
   if (b.scripted === 'dragon') {
     state.flags.bossDefeated = true;
     pushLog(b, '村を脅かしていた元凶を打ち倒した……！');
+    addReputation(15).forEach((l) => pushLog(b, l));
   } else {
     p.gold += b.monster.gold;
     pushLog(b, `${b.monster.gold}ゴールドを手に入れた！`);
@@ -238,11 +305,19 @@ function endBattleVictory() {
     if (gained.levels > 0) pushLog(b, `レベルが${gained.levels}あがった！ Lv.${p.level}`);
     gained.newSpells.forEach((sid) => pushLog(b, `呪文『${SPELLS[sid].name}』を覚えた！`));
 
+    const jobResult = gainJobExp(p, b.monster.exp);
+    if (jobResult && jobResult.mastered) {
+      pushLog(b, `${JOBS[p.job].name}をマスターした！ 永続的なボーナスを得た！`);
+    } else if (jobResult && jobResult.leveled) {
+      pushLog(b, `${JOBS[p.job].name}の職業レベルが${p.jobLevels[p.job].level}になった！`);
+    }
+
     if (b.scripted === 'guardian') {
       state.flags.guardianDefeated = true;
       state.flags.hasHolySword = true;
       addOwnedEquipment(p, 'sword_holy');
       pushLog(b, '古の聖剣「光の剣」を手に入れた！');
+      addReputation(15).forEach((l) => pushLog(b, l));
     } else if (b.scripted === 'superboss') {
       state.flags.superbossDefeated = true;
       addOwnedEquipment(p, 'sword_dawn');
@@ -250,6 +325,10 @@ function endBattleVictory() {
       if (state.player.companion === 'kain') {
         pushLog(b, 'カインが呟いた……「これでようやく、雪辱を果たせた」');
       }
+      addReputation(15).forEach((l) => pushLog(b, l));
+    } else if (b.scripted && b.scripted.startsWith('grotto_boss') && state.flags.grottoClearsCounted < 5) {
+      state.flags.grottoClearsCounted += 1;
+      addReputation(5).forEach((l) => pushLog(b, l));
     }
   }
 
@@ -435,8 +514,9 @@ function activateCheat() {
   if (!p) return;
   p.level = CHEAT_MAX_LEVEL;
   const st = statsForLevel(CHEAT_MAX_LEVEL);
+  const jobMod = p.job && JOBS[p.job] ? JOBS[p.job].mpMod : 1;
   p.maxHp = st.maxHp;
-  p.maxMp = st.maxMp;
+  p.maxMp = Math.round(st.maxMp * jobMod);
   p.hp = p.maxHp;
   p.mp = p.maxMp;
   refreshSpells(p);
@@ -446,6 +526,12 @@ function activateCheat() {
   p.armor = 'armor_radiant';
   p.accessory = 'twilight_charm';
   p.gold = 99999;
+  p.jobLevels = p.jobLevels || {};
+  p.masteredJobs = p.masteredJobs || [];
+  Object.keys(JOBS).forEach((id) => {
+    p.jobLevels[id] = { level: JOB_MAX_LEVEL, exp: jobExpToReach(JOB_MAX_LEVEL) };
+    if (!p.masteredJobs.includes(id)) p.masteredJobs.push(id);
+  });
   state.flags.hasHolySword = true;
   showDialogue(['……体の奥から、抑えきれない力が溢れ出す！', '(隠しコマンドが発動した！ 勇者は最強の姿になった！)'], () => { state.screen = 'FIELD'; });
 }
@@ -467,8 +553,12 @@ function craftItem(recipeId) {
   }
   p.gold -= recipe.gold;
   Object.entries(recipe.materials).forEach(([id, qty]) => removeItem(p, id, qty));
-  addOwnedEquipment(p, recipe.result);
-  state.menu.msg = `${EQUIPMENT[recipe.result].name}を合成した！`;
+  if (EQUIPMENT[recipe.result]) {
+    addOwnedEquipment(p, recipe.result);
+  } else {
+    addItem(p, recipe.result, recipe.resultQty || 1);
+  }
+  state.menu.msg = `${itemDef(recipe.result).name}を合成した！`;
 }
 
 // ------------------------------------------------------------
@@ -521,7 +611,7 @@ if (typeof module !== 'undefined') {
     endBattleVictory, endBattleDefeat, resolveMonsterTurnIfAlive,
     battleCommandAttack, battleCommandSpell, battleCommandItem, battleCommandDefend, battleCommandFlee, closeBattle,
     openShop, shopBuyList, shopSellList, itemDef, shopBuy, shopSell,
-    craftHasMaterials, craftItem, activateCheat,
+    craftHasMaterials, craftItem, activateCheat, addReputation, enterRandomDungeon,
     saveGame, loadGame, listSaveSlots, hasSaveData, migrateLegacySave,
     triggerEnding, showDialogue, showConfirm,
   };

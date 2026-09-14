@@ -73,7 +73,15 @@ function playerAttack(state, battle) {
 function companionAttack(state, battle) {
   const comp = COMPANIONS[state.player.companion];
   if (!comp) return;
-  const dmg = physicalDamage(comp.atk(state.player.level), battle.monster.def);
+  const p = state.player;
+  if (comp.behavior === 'support' && comp.heal && p.hp < p.maxHp * 0.5) {
+    const heal = Math.round(comp.heal(p.level));
+    p.hp = Math.min(p.maxHp, p.hp + heal);
+    pushPopup(battle, 'player', heal, { heal: true });
+    pushLog(battle, `${comp.name}の祈り！ ${p.name}のHPが${heal}回復した！`);
+    return;
+  }
+  const dmg = physicalDamage(comp.atk(p.level), battle.monster.def);
   battle.monster.hp = Math.max(0, battle.monster.hp - dmg);
   battle.flashEnemy = 6;
   pushPopup(battle, 'enemy', dmg, {});

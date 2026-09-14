@@ -23,6 +23,7 @@ const state = {
     bestiaryRewardGiven: false,
     loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
     townReputation: 0, reputationRankSeen: 0, grottoClearsCounted: 0,
+    arenaBestWave: 0, achievementsSeen: {},
     killCounts: {}, bestiary: {}, visitedMaps: {},
   },
   dialogue: null,
@@ -35,6 +36,7 @@ const state = {
   lastMoveAt: 0,
   endingExtraLines: [],
   randomDungeon: null,
+  arena: null,
 };
 
 // ------------------------------------------------------------
@@ -86,6 +88,29 @@ function addReputation(points) {
       lines.push(`「${EQUIPMENT[rank.reward.equip].name}」を手に入れた！`);
     }
   }
+  return lines;
+}
+
+// 実績の達成判定。新たに達成したものがあれば、その通知行を返す
+function checkAchievements() {
+  state.flags.achievementsSeen = state.flags.achievementsSeen || {};
+  const lines = [];
+  ACHIEVEMENTS.forEach((a) => {
+    if (state.flags.achievementsSeen[a.id]) return;
+    if (!a.check(state)) return;
+    state.flags.achievementsSeen[a.id] = true;
+    lines.push(`実績「${a.name}」を達成した！`);
+    if (a.reward) {
+      if (a.reward.gold) {
+        state.player.gold += a.reward.gold;
+        lines.push(`ごほうびとして${a.reward.gold}ゴールドを受け取った！`);
+      }
+      if (a.reward.equip) {
+        addOwnedEquipment(state.player, a.reward.equip);
+        lines.push(`「${EQUIPMENT[a.reward.equip].name}」を手に入れた！`);
+      }
+    }
+  });
   return lines;
 }
 
@@ -221,6 +246,13 @@ function interactNpc(npc) {
     });
     return;
   }
+  if (npc.id === 'arenaReceptionist') {
+    const best = state.flags.arenaBestWave || 0;
+    showConfirm([`闘技場へようこそ！ 自己ベストは第${best}戦。`, '挑戦しますか？'], (yes) => {
+      if (yes) { startArenaWave(1); } else { state.screen = 'FIELD'; }
+    });
+    return;
+  }
   if (npc.inn) {
     showConfirm([`${state.player.name}は宿屋に泊まりますか？`, '(10ゴールド)'], (yes) => {
       if (yes && state.player.gold >= 10) {
@@ -272,6 +304,28 @@ function triggerRandomEncounter(table) {
   state.battle = createBattle(monsterId, false);
   state.flags.bestiary[monsterId] = true;
   state.battle.log.push(`${state.battle.monster.name}があらわれた！`);
+  state.battleMenu = { mode: 'main', cursor: 0 };
+  state.screen = 'BATTLE';
+}
+
+// ------------------------------------------------------------
+// 闘技場 (連戦チャレンジ)
+// ------------------------------------------------------------
+const ARENA_MONSTER_POOL = ['slime', 'wolf', 'ghost', 'scorpion', 'bat', 'thief', 'skeleton', 'dark_knight', 'golem', 'iron_golem', 'tower_wraith', 'arcane_sentinel'];
+
+function startArenaWave(wave) {
+  const monsterId = ARENA_MONSTER_POOL[Math.min(ARENA_MONSTER_POOL.length - 1, Math.floor((wave - 1) / 2))];
+  const mult = 1 + (wave - 1) * 0.12;
+  const src = MONSTERS[monsterId];
+  const overrides = {
+    hp: Math.round(src.hp * mult), atk: Math.round(src.atk * mult), def: Math.round(src.def * mult),
+    exp: Math.round(src.exp * mult), gold: Math.round(src.gold * mult),
+  };
+  state.arena = { active: true, wave };
+  state.battle = createBattle(monsterId, false, overrides);
+  state.battle.scripted = 'arena';
+  state.flags.bestiary[monsterId] = true;
+  state.battle.log.push(`闘技場 第${wave}戦！ ${state.battle.monster.name}が現れた！`);
   state.battleMenu = { mode: 'main', cursor: 0 };
   state.screen = 'BATTLE';
 }
@@ -338,6 +392,8 @@ function endBattleVictory() {
     addOwnedEquipment(p, 'ring_hunter');
     pushLog(b, 'モンスター図鑑がすべて埋まった！ 「狩人の指輪」を手に入れた！');
   }
+
+  checkAchievements().forEach((l) => pushLog(b, l));
 
   b.turn = 'won';
 }
@@ -418,6 +474,7 @@ function closeBattle() {
   const scripted = state.battle && state.battle.scripted;
   state.battle = null;
   if (lost) {
+    state.arena = null;
     const p = state.player;
     p.gold = Math.floor(p.gold / 2);
     p.hp = Math.max(1, Math.floor(p.maxHp * 0.5));
@@ -433,6 +490,19 @@ function closeBattle() {
   }
   if (won && scripted === 'superboss') {
     showDialogue(['暁光の剣を手に入れた……まさに夜明けの如き輝きだ。', '試練の塔に、もう思い残すことはなさそうだ。'], () => { state.screen = 'FIELD'; });
+    return;
+  }
+  if (won && scripted === 'arena') {
+    const wave = state.arena.wave;
+    state.flags.arenaBestWave = Math.max(state.flags.arenaBestWave || 0, wave);
+    const achLines = checkAchievements();
+    const askContinue = () => {
+      showConfirm([`第${wave}戦に勝利した！`, '次の相手と戦いますか？'], (yes) => {
+        if (yes) { startArenaWave(wave + 1); } else { state.arena = null; state.screen = 'FIELD'; }
+      });
+    };
+    if (achLines.length > 0) showDialogue(achLines, askContinue);
+    else askContinue();
     return;
   }
   state.screen = 'FIELD';
@@ -612,6 +682,7 @@ if (typeof module !== 'undefined') {
     battleCommandAttack, battleCommandSpell, battleCommandItem, battleCommandDefend, battleCommandFlee, closeBattle,
     openShop, shopBuyList, shopSellList, itemDef, shopBuy, shopSell,
     craftHasMaterials, craftItem, activateCheat, addReputation, enterRandomDungeon,
+    checkAchievements, startArenaWave,
     saveGame, loadGame, listSaveSlots, hasSaveData, migrateLegacySave,
     triggerEnding, showDialogue, showConfirm,
   };

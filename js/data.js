@@ -429,7 +429,7 @@ const NPCS = [
         state.flags.dogQuestDone = true;
         addItem(state.player, 'item_hi_herb', 1);
         state.player.gold += 30;
-        return ['おお、ポチ！ よかった、無事だったんだね！', 'お礼に上級やくそうと30ゴールドを渡すよ。', '本当にありがとう、勇者様。', ...addReputation(10)];
+        return ['おお、ポチ！ よかった、無事だったんだね！', 'お礼に上級やくそうと30ゴールドを渡すよ。', '本当にありがとう、勇者様。', ...addReputation(10), ...checkAchievements()];
       }
       if (state.flags.dogQuestActive) {
         return ['ポチがまだ見つからないの……', 'リアーナ平原のどこかにいると思うんだけど。'];
@@ -502,7 +502,7 @@ const NPCS = [
         state.flags.wolfQuestDone = true;
         state.player.gold += 50;
         addItem(state.player, 'item_hi_herb', 2);
-        return ['おお、はぐれ狼を5匹も討伐してくれたのか！', 'これは礼だ、受け取ってくれ。', '(50ゴールドと上級やくそうを2つ手に入れた！)', ...addReputation(10)];
+        return ['おお、はぐれ狼を5匹も討伐してくれたのか！', 'これは礼だ、受け取ってくれ。', '(50ゴールドと上級やくそうを2つ手に入れた！)', ...addReputation(10), ...checkAchievements()];
       }
       if (state.flags.wolfQuestActive) {
         return [`まだ平原に狼が出るらしい。(討伐数: ${kills}/5)`, '引き続き頼めるか？'];
@@ -520,7 +520,7 @@ const NPCS = [
       if (state.flags.locketFound) {
         state.flags.locketQuestDone = true;
         addOwnedEquipment(state.player, 'locket_memory');
-        return ['まあ、これは……！ 亡き夫の形見のロケット！', '見つけてくれて本当にありがとう。', 'お礼にこのお守りを受け取っておくれ。', '(思い出のロケットを手に入れた！)', ...addReputation(10)];
+        return ['まあ、これは……！ 亡き夫の形見のロケット！', '見つけてくれて本当にありがとう。', 'お礼にこのお守りを受け取っておくれ。', '(思い出のロケットを手に入れた！)', ...addReputation(10), ...checkAchievements()];
       }
       if (state.flags.locketQuestActive) {
         return ['ロケットは囁きの森のどこかに落ちているはずなんじゃ……'];
@@ -549,7 +549,7 @@ const NPCS = [
       if (state.flags.swordFound) {
         state.flags.kainQuestDone = true;
         state.player.companion = 'kain';
-        return ['おお、これは俺の剣だ！ 本当にありがとう！', 'この恩は戦いで返そう。俺を仲間にしてくれ！', '(カインが仲間になった！)', ...addReputation(10)];
+        return ['おお、これは俺の剣だ！ 本当にありがとう！', 'この恩は戦いで返そう。俺を仲間にしてくれ！', '(カインが仲間になった！)', ...addReputation(10), ...checkAchievements()];
       }
       if (state.flags.kainQuestActive) {
         return ['まだ剣は見つからないか……', '囁きの森のどこかで盗賊にやられたんだ。'];
@@ -604,6 +604,10 @@ const NPCS = [
     shop: 'mapshop',
     lines() { return ['不思議な地図をお求めかい？', '地図が導く先には、誰も知らない洞窟が広がっているらしい。']; },
   },
+  {
+    id: 'arenaReceptionist', map: 'town2', x: 9, y: 9, glyph: '闘', color: '#d4453a',
+    lines() { return ['闘技場へようこそ！']; },
+  },
 ];
 
 // ============================================================
@@ -621,6 +625,7 @@ function readLoreStone(state, id, text) {
     lines.push('……すべての石版を読み解いた。');
     lines.push('古の知恵が身を包み、「賢者の証」を手に入れた！');
     lines.push(...addReputation(10));
+    lines.push(...checkAchievements());
   }
   return lines;
 }
@@ -676,6 +681,32 @@ function reputationRankIndex(points) {
   REPUTATION_RANKS.forEach((r, i) => { if (points >= r.threshold) idx = i; });
   return idx;
 }
+
+// ============================================================
+// 実績 (じっせき)
+// ============================================================
+const ACHIEVEMENTS = [
+  {
+    id: 'hunter50', name: '討伐の勲章', desc: 'モンスターを合計50体たおす',
+    check(state) { return Object.values(state.flags.killCounts || {}).reduce((a, b) => a + b, 0) >= 50; },
+    reward: { equip: 'medal_hunter' },
+  },
+  {
+    id: 'allQuests', name: '頼れる勇者', desc: 'すべてのサイドクエストを達成する',
+    check(state) { return SIDE_QUESTS.every((q) => state.flags[q.doneFlag]); },
+    reward: { equip: 'medal_savior' },
+  },
+  {
+    id: 'jobMaster', name: '熟練の証', desc: 'いずれかの職業をマスターする',
+    check(state) { return (state.player.masteredJobs || []).length > 0; },
+    reward: { equip: 'medal_master' },
+  },
+  {
+    id: 'arenaChampion', name: '闘技場の覇者', desc: '闘技場で10連勝する',
+    check(state) { return (state.flags.arenaBestWave || 0) >= 10; },
+    reward: { equip: 'medal_champion' },
+  },
+];
 
 // ============================================================
 // ゲーム開始時のオープニング (さいしょから、のみ表示)
@@ -769,6 +800,10 @@ const EQUIPMENT = {
   pendant_sage: { id: 'pendant_sage', name: '賢者の証', type: 'accessory', atk: 4, def: 4, price: 0 },
   crown_hero: { id: 'crown_hero', name: '名誉の証', type: 'accessory', atk: 6, def: 6, price: 0 },
   crown_legend: { id: 'crown_legend', name: '伝説の証', type: 'accessory', atk: 12, def: 12, price: 0 },
+  medal_hunter: { id: 'medal_hunter', name: '討伐の勲章', type: 'accessory', atk: 3, price: 0 },
+  medal_savior: { id: 'medal_savior', name: '村の救世主の証', type: 'accessory', atk: 5, def: 5, price: 0 },
+  medal_master: { id: 'medal_master', name: '熟練の証', type: 'accessory', atk: 4, def: 4, price: 0 },
+  medal_champion: { id: 'medal_champion', name: '闘技場チャンピオンの証', type: 'accessory', atk: 7, def: 7, price: 0 },
 };
 
 // ============================================================
@@ -906,6 +941,6 @@ if (typeof module !== 'undefined') {
     OPENING_STORY, MAP_FIRST_VISIT_HINTS,
     townStage, townGridForStage, TOWN_GRIDS_BY_STAGE, TOWN_BG_COLORS, mainQuestStageText,
     GROTTO_RANKS, generateGrottoGrid, JOBS, JOB_MAX_LEVEL, jobExpToReach,
-    REPUTATION_RANKS, reputationRankIndex,
+    REPUTATION_RANKS, reputationRankIndex, ACHIEVEMENTS,
   };
 }

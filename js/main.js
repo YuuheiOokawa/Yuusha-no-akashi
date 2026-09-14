@@ -2,7 +2,7 @@
 // main.js - 描画・入力・メインループ
 // ============================================================
 
-const topOptions = ['どうぐ', '合成', 'てんしょく', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', 'ステータス', 'セーブ', 'とじる'];
+const topOptions = ['どうぐ', '合成', '強化', 'てんしょく', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', '実績', 'ステータス', 'セーブ', 'とじる'];
 const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'ぼうぎょ', 'にげる'];
 
 // 文字がゆっくり表示されるスピード(1フレームあたりの文字数)
@@ -175,6 +175,7 @@ function defaultFlags() {
     bestiaryRewardGiven: false,
     loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
     townReputation: 0, reputationRankSeen: 0, grottoClearsCounted: 0,
+    arenaBestWave: 0, achievementsSeen: {},
     killCounts: {}, bestiary: {}, visitedMaps: {},
   };
 }
@@ -199,6 +200,7 @@ function continueGame(slot) {
     state.player.jobLevels = Object.keys(JOBS).reduce((acc, id) => { acc[id] = { level: 1, exp: 0 }; return acc; }, {});
   }
   if (!state.player.masteredJobs) state.player.masteredJobs = [];
+  if (!state.player.enhancements) state.player.enhancements = {};
   state.flags = Object.assign(defaultFlags(), data.flags || {});
   state.currentSlot = slot;
   state.screen = 'FIELD';
@@ -293,12 +295,14 @@ function menuKey(e) {
       const choice = topOptions[m.cursor];
       if (choice === 'どうぐ') { m.mode = 'item'; m.cursor = 0; m.msg = null; }
       else if (choice === '合成') { m.mode = 'craft'; m.cursor = 0; m.msg = null; }
+      else if (choice === '強化') { m.mode = 'enhance'; m.cursor = 0; m.msg = null; }
       else if (choice === 'てんしょく') { m.mode = 'job'; m.cursor = 0; m.msg = null; }
       else if (choice === 'そうび') { m.mode = 'equipSlot'; m.cursor = 0; }
       else if (choice === 'じゅもん') {
         if (state.player.spells.length > 0) { m.mode = 'spell'; m.cursor = 0; m.msg = null; }
       } else if (choice === 'クエスト') { m.mode = 'quest'; }
       else if (choice === 'モンスター図鑑') { m.mode = 'bestiary'; m.cursor = 0; }
+      else if (choice === '実績') { m.mode = 'achievements'; m.cursor = 0; }
       else if (choice === 'ステータス') { m.mode = 'status'; }
       else if (choice === 'セーブ') { saveGame(state.currentSlot); m.msg = 'ぼうけんの書にきろくした！'; }
       else if (choice === 'とじる') { state.screen = 'FIELD'; state.menu = null; }
@@ -404,6 +408,25 @@ function menuKey(e) {
       switchJob(state.player, id);
       m.msg = `${JOBS[id].name}に転職した！`;
     }
+    return;
+  }
+  if (m.mode === 'enhance') {
+    const list = state.player.ownedEquipment;
+    if (e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; m.msg = null; return; }
+    if (list.length === 0) { if (e.key === 'Enter' || e.key === ' ') { m.mode = 'top'; m.cursor = 0; } return; }
+    if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + list.length) % list.length;
+    else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % list.length;
+    else if (e.key === 'Enter' || e.key === ' ') {
+      const id = list[m.cursor];
+      const result = enhanceEquipment(state.player, id);
+      if (result.ok) m.msg = `${EQUIPMENT[id].name}を+${result.level}に強化した！ (-${result.cost}G)`;
+      else if (result.reason === 'max') m.msg = 'これ以上は強化できない！';
+      else m.msg = `ゴールドが足りない！ (必要:${result.cost}G)`;
+    }
+    return;
+  }
+  if (m.mode === 'achievements') {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; }
   }
 }
 
@@ -632,7 +655,8 @@ function drawConfirmBox() {
 function drawMenu() {
   const m = state.menu;
   if (m.mode === 'top') {
-    drawPanel(360, 12, 260, 320);
+    const menuH = Math.min(456, 40 + topOptions.length * 34);
+    drawPanel(360, 12, 260, menuH);
     topOptions.forEach((opt, i) => drawText(380, 30 + i * 34, (m.cursor === i ? '▶ ' : '　') + opt, { font: '17px' }));
     if (m.msg) drawText(380, 30 + topOptions.length * 34 + 6, m.msg, { font: '12px', color: '#ffd54a' });
     return;
@@ -762,6 +786,39 @@ function drawMenu() {
     drawText(80, 40 + jobIds.length * 36 + 10, curJob.desc, { font: '12px', color: '#aaa' });
     if (m.msg) drawText(80, 270, m.msg, { font: '13px', color: '#ffd54a' });
     drawText(80, 290, 'Enter:てんしょくする　Esc:もどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'enhance') {
+    drawPanel(40, 8, 560, 464);
+    const p = state.player;
+    const list = p.ownedEquipment;
+    drawText(60, 22, `そうび強化　所持金:${p.gold}G　(${Math.min(list.length, m.cursor + 1)}/${list.length})`, { font: '15px', color: '#ffd54a' });
+    if (list.length === 0) drawText(80, 52, 'そうびを持っていない。', { font: '14px' });
+    const visibleCount = 18;
+    let scroll = Math.max(0, Math.min(m.cursor - Math.floor(visibleCount / 2), list.length - visibleCount));
+    scroll = Math.max(0, scroll);
+    list.slice(scroll, scroll + visibleCount).forEach((id, vi) => {
+      const i = scroll + vi;
+      const eq = EQUIPMENT[id];
+      const level = (p.enhancements && p.enhancements[id]) || 0;
+      const maxed = level >= ENHANCE_MAX_LEVEL;
+      const label = maxed ? `${eq.name}　+${level} (MAX)` : `${eq.name}　+${level}　次:${enhanceCost(id, level + 1)}G`;
+      drawText(60, 52 + vi * 19, (m.cursor === i ? '▶ ' : '　') + label, { font: '12px', color: maxed ? '#888' : '#fff' });
+    });
+    if (m.msg) drawText(60, 428, m.msg, { font: '12px', color: '#ffd54a' });
+    drawText(60, 456, 'Enter:強化する　Esc:もどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'achievements') {
+    drawPanel(50, 20, 540, 320);
+    drawText(70, 36, '実績', { font: '15px', color: '#ffd54a' });
+    ACHIEVEMENTS.forEach((a, i) => {
+      const done = !!(state.flags.achievementsSeen && state.flags.achievementsSeen[a.id]);
+      const mark = done ? '☑' : '☐';
+      drawText(70, 66 + i * 44, `${mark} ${a.name}`, { font: '14px', color: done ? '#ffd54a' : '#fff' });
+      drawText(90, 66 + i * 44 + 20, a.desc, { font: '11px', color: '#aaa' });
+    });
+    drawText(70, 320, 'Enterでもどる', { font: '12px', color: '#aaa' });
   }
 }
 

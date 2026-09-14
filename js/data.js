@@ -540,7 +540,7 @@ const NPCS = [
   {
     id: 'kain', map: 'town2', x: 18, y: 9, glyph: '剣', color: '#4a9ae0',
     lines(state) {
-      if (state.player.companion === 'kain') {
+      if (state.flags.kainQuestDone) {
         const count = (state.flags.kainTalkCount = (state.flags.kainTalkCount || 0) + 1);
         if (count === 1) return ['ああ、頼りにしてるぜ、相棒。', 'この剣は……昔、兄からもらった大切な剣なんだ。'];
         if (count === 2) return ['実はな……昔、修行のために試練の塔に挑んだことがある。', 'だが、あの塔の主に手も足も出ずに敗れちまってな。'];
@@ -548,7 +548,7 @@ const NPCS = [
       }
       if (state.flags.swordFound) {
         state.flags.kainQuestDone = true;
-        state.player.companion = 'kain';
+        recruitCompanion(state, 'kain');
         return ['おお、これは俺の剣だ！ 本当にありがとう！', 'この恩は戦いで返そう。俺を仲間にしてくれ！', '(カインが仲間になった！)', ...addReputation(10), ...checkAchievements()];
       }
       if (state.flags.kainQuestActive) {
@@ -564,6 +564,32 @@ const NPCS = [
     lines(state) {
       state.flags.swordFound = true;
       return ['(キラリ……)', '打ち捨てられた剣を見つけた！ フェルンの城下町のカインに届けよう。'];
+    },
+  },
+  {
+    id: 'lisa', map: 'field2', x: 15, y: 5, glyph: '祈', color: '#e0a0d0',
+    lines(state) {
+      if (state.flags.lisaQuestDone) {
+        const count = (state.flags.lisaTalkCount = (state.flags.lisaTalkCount || 0) + 1);
+        if (count === 1) return ['ありがとうございます、おかげで森を抜けられそうです。', '私はリサ。旅の神官です。'];
+        if (count === 2) return ['あなたの旅に、わずかながら力を貸せれば……', '傷ついた時は、いつでも祈りましょう。'];
+        return ['どうか、お気をつけて。'];
+      }
+      const kills = (state.flags.killCounts && state.flags.killCounts.bat) || 0;
+      if (state.flags.lisaQuestActive && kills >= 3) {
+        state.flags.lisaQuestDone = true;
+        recruitCompanion(state, 'lisa');
+        return [
+          '蝙蝠の群れを追い払ってくださったのですね……！', '本当にありがとうございます。',
+          'よろしければ、私も旅のお供をさせてください。', '(リサが仲間になった！)',
+          ...addReputation(10), ...checkAchievements(),
+        ];
+      }
+      if (state.flags.lisaQuestActive) {
+        return [`まだ蝙蝠が多いようです……(討伐数: ${kills}/3)`, 'お気をつけて。'];
+      }
+      state.flags.lisaQuestActive = true;
+      return ['助けてください……森の蝙蝠の群れに囲まれてしまって。', '蝙蝠を3匹ほど追い払っていただけませんか？'];
     },
   },
   {
@@ -639,6 +665,7 @@ const SIDE_QUESTS = [
   { id: 'locket', name: '忘れ形見のロケット', activeFlag: 'locketQuestActive', doneFlag: 'locketQuestDone' },
   { id: 'kainSword', name: '旅の剣士の剣', activeFlag: 'kainQuestActive', doneFlag: 'kainQuestDone' },
   { id: 'loreStones', name: '古代の石版', activeFlag: 'loreStonesStarted', doneFlag: 'loreStonesComplete' },
+  { id: 'lisaHelp', name: '旅の神官リサ', activeFlag: 'lisaQuestActive', doneFlag: 'lisaQuestDone' },
 ];
 
 // ============================================================
@@ -646,8 +673,13 @@ const SIDE_QUESTS = [
 // ============================================================
 const COMPANIONS = {
   kain: {
-    id: 'kain', name: 'カイン', glyph: '剣', color: '#4a9ae0',
+    id: 'kain', name: 'カイン', glyph: '剣', color: '#4a9ae0', behavior: 'attack',
     atk(level) { return 6 + level * 2; },
+  },
+  lisa: {
+    id: 'lisa', name: 'リサ', glyph: '祈', color: '#e0a0d0', behavior: 'support',
+    atk(level) { return 3 + Math.floor(level * 1.2); },
+    heal(level) { return 15 + level * 3; },
   },
 };
 

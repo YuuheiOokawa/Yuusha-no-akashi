@@ -2,7 +2,7 @@
 // main.js - 描画・入力・メインループ
 // ============================================================
 
-const topOptions = ['どうぐ', '合成', '強化', 'てんしょく', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', '実績', 'ステータス', 'セーブ', 'とじる'];
+const topOptions = ['どうぐ', '合成', '強化', 'てんしょく', 'なかま', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', '実績', 'ステータス', 'セーブ', 'とじる'];
 const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'ぼうぎょ', 'にげる'];
 
 // 文字がゆっくり表示されるスピード(1フレームあたりの文字数)
@@ -172,6 +172,7 @@ function defaultFlags() {
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
     kainQuestActive: false, swordFound: false, kainQuestDone: false, kainTalkCount: 0,
+    lisaQuestActive: false, lisaQuestDone: false, lisaTalkCount: 0,
     bestiaryRewardGiven: false,
     loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
     townReputation: 0, reputationRankSeen: 0, grottoClearsCounted: 0,
@@ -195,6 +196,9 @@ function continueGame(slot) {
   if (!state.player.ownedEquipment) state.player.ownedEquipment = [state.player.weapon].filter(Boolean);
   if (state.player.accessory === undefined) state.player.accessory = null;
   if (state.player.companion === undefined) state.player.companion = null;
+  if (!state.player.recruitedCompanions) {
+    state.player.recruitedCompanions = state.player.companion ? [state.player.companion] : [];
+  }
   if (!state.player.job) state.player.job = 'warrior';
   if (!state.player.jobLevels) {
     state.player.jobLevels = Object.keys(JOBS).reduce((acc, id) => { acc[id] = { level: 1, exp: 0 }; return acc; }, {});
@@ -297,6 +301,7 @@ function menuKey(e) {
       else if (choice === '合成') { m.mode = 'craft'; m.cursor = 0; m.msg = null; }
       else if (choice === '強化') { m.mode = 'enhance'; m.cursor = 0; m.msg = null; }
       else if (choice === 'てんしょく') { m.mode = 'job'; m.cursor = 0; m.msg = null; }
+      else if (choice === 'なかま') { m.mode = 'party'; m.cursor = 0; }
       else if (choice === 'そうび') { m.mode = 'equipSlot'; m.cursor = 0; }
       else if (choice === 'じゅもん') {
         if (state.player.spells.length > 0) { m.mode = 'spell'; m.cursor = 0; m.msg = null; }
@@ -407,6 +412,17 @@ function menuKey(e) {
       const id = jobIds[m.cursor];
       switchJob(state.player, id);
       m.msg = `${JOBS[id].name}に転職した！`;
+    }
+    return;
+  }
+  if (m.mode === 'party') {
+    const list = [null, ...(state.player.recruitedCompanions || [])];
+    if (e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; return; }
+    if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + list.length) % list.length;
+    else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % list.length;
+    else if (e.key === 'Enter' || e.key === ' ') {
+      state.player.companion = list[m.cursor];
+      m.mode = 'top'; m.cursor = 0;
     }
     return;
   }
@@ -655,10 +671,11 @@ function drawConfirmBox() {
 function drawMenu() {
   const m = state.menu;
   if (m.mode === 'top') {
-    const menuH = Math.min(456, 40 + topOptions.length * 34);
+    const rowH = 28;
+    const menuH = Math.min(460, 36 + topOptions.length * rowH);
     drawPanel(360, 12, 260, menuH);
-    topOptions.forEach((opt, i) => drawText(380, 30 + i * 34, (m.cursor === i ? '▶ ' : '　') + opt, { font: '17px' }));
-    if (m.msg) drawText(380, 30 + topOptions.length * 34 + 6, m.msg, { font: '12px', color: '#ffd54a' });
+    topOptions.forEach((opt, i) => drawText(380, 28 + i * rowH, (m.cursor === i ? '▶ ' : '　') + opt, { font: '16px' }));
+    if (m.msg) drawText(380, 28 + topOptions.length * rowH + 6, m.msg, { font: '12px', color: '#ffd54a' });
     return;
   }
   if (m.mode === 'item') {
@@ -786,6 +803,20 @@ function drawMenu() {
     drawText(80, 40 + jobIds.length * 36 + 10, curJob.desc, { font: '12px', color: '#aaa' });
     if (m.msg) drawText(80, 270, m.msg, { font: '13px', color: '#ffd54a' });
     drawText(80, 290, 'Enter:てんしょくする　Esc:もどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'party') {
+    drawPanel(60, 20, 520, 300);
+    drawText(80, 36, 'なかま', { font: '15px', color: '#ffd54a' });
+    const roster = state.player.recruitedCompanions || [];
+    const list = [null, ...roster];
+    list.forEach((id, i) => {
+      const label = id === null ? 'だれもつれていかない' : COMPANIONS[id].name;
+      const current = state.player.companion === id ? ' (現在)' : '';
+      drawText(80, 66 + i * 30, (m.cursor === i ? '▶ ' : '　') + label + current, { font: '15px' });
+    });
+    if (roster.length === 0) drawText(80, 96, 'まだ仲間がいない。旅の中で出会えるはずだ。', { font: '12px', color: '#aaa' });
+    drawText(80, 290, 'Enter:えらぶ　Esc:もどる', { font: '12px', color: '#aaa' });
     return;
   }
   if (m.mode === 'enhance') {

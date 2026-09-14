@@ -36,6 +36,7 @@ function createNewPlayer(name) {
     inventory: { item_herb: 2, item_water: 1 },
     spells: [],
     companion: null,
+    recruitedCompanions: [],
     job: 'warrior',
     jobLevels: Object.keys(JOBS).reduce((acc, id) => { acc[id] = { level: 1, exp: 0 }; return acc; }, {}),
     masteredJobs: [],

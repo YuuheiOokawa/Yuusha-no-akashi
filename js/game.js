@@ -20,6 +20,7 @@ const state = {
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
     kainQuestActive: false, swordFound: false, kainQuestDone: false, kainTalkCount: 0,
+    lisaQuestActive: false, lisaQuestDone: false, lisaTalkCount: 0,
     bestiaryRewardGiven: false,
     loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
     townReputation: 0, reputationRankSeen: 0, grottoClearsCounted: 0,
@@ -67,6 +68,14 @@ function showConfirm(rawLines, onDone) {
   rawLines.forEach((line) => wrapJapanese(line, 20).forEach((w) => wrapped.push(w)));
   state.confirm = { lines: wrapped, cursor: 0, onDone };
   state.screen = 'CONFIRM';
+}
+
+// なかまを仲間リストに加える。まだ誰も連れていない場合は、そのまま同行させる
+function recruitCompanion(state, id) {
+  const p = state.player;
+  p.recruitedCompanions = p.recruitedCompanions || [];
+  if (!p.recruitedCompanions.includes(id)) p.recruitedCompanions.push(id);
+  if (!p.companion) p.companion = id;
 }
 
 // 村の評判ポイントを加算する。ランクが上がったら、そのお祝いメッセージの
@@ -682,7 +691,7 @@ if (typeof module !== 'undefined') {
     battleCommandAttack, battleCommandSpell, battleCommandItem, battleCommandDefend, battleCommandFlee, closeBattle,
     openShop, shopBuyList, shopSellList, itemDef, shopBuy, shopSell,
     craftHasMaterials, craftItem, activateCheat, addReputation, enterRandomDungeon,
-    checkAchievements, startArenaWave,
+    checkAchievements, startArenaWave, recruitCompanion,
     saveGame, loadGame, listSaveSlots, hasSaveData, migrateLegacySave,
     triggerEnding, showDialogue, showConfirm,
   };

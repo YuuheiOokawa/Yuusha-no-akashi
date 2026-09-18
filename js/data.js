@@ -528,6 +528,35 @@ const BARRIER_MAP = 'cave';
 const BARRIER_FLAG = 'sealBroken';
 
 // ============================================================
+// 世界地図 (メニューの「せかいマップ」で表示するワールド全体の地図)
+// 不思議な地図から生成される「不思議な洞窟」はその都度姿を変えるため、
+// ここには載らない。
+// ============================================================
+const WORLD_MAP_NODES = [
+  { id: 'town', name: 'ルミナ村', type: 'town', x: 90, y: 40 },
+  { id: 'field', name: 'リアーナ平原', type: 'field', x: 90, y: 110 },
+  { id: 'cape', name: '月光の岬', type: 'field', x: 20, y: 150 },
+  { id: 'cave', name: '竜の洞窟', type: 'dungeon', x: 140, y: 160 },
+  { id: 'tower', name: '試練の塔', type: 'dungeon', x: 140, y: 220 },
+  { id: 'abyss', name: '深淵の回廊', type: 'dungeon', x: 140, y: 280 },
+  { id: 'town2', name: 'フェルン城下町', type: 'town', x: 210, y: 100 },
+  { id: 'field2', name: '囁きの森', type: 'field', x: 260, y: 140 },
+  { id: 'ruins', name: '古代遺跡', type: 'dungeon', x: 260, y: 200 },
+  { id: 'field3', name: '霧隠れの荒野', type: 'field', x: 310, y: 240 },
+  { id: 'town3', name: '鉱都ドルンガル', type: 'town', x: 370, y: 240 },
+  { id: 'dungeon3', name: '氷結の祭壇', type: 'dungeon', x: 420, y: 270 },
+  { id: 'field4', name: '嘆きの荒地', type: 'field', x: 420, y: 320 },
+  { id: 'town4', name: '聖域の門前町レイヴン', type: 'town', x: 360, y: 340 },
+  { id: 'dungeon4', name: '忘却の大聖堂', type: 'dungeon', x: 290, y: 320 },
+];
+const WORLD_MAP_EDGES = [
+  ['town', 'field'], ['field', 'cape'], ['field', 'cave'], ['cave', 'tower'], ['tower', 'abyss'],
+  ['field', 'town2'], ['town2', 'field2'], ['field2', 'ruins'], ['ruins', 'field3'],
+  ['field3', 'town3'], ['town3', 'dungeon3'], ['dungeon3', 'field4'], ['field4', 'town4'],
+  ['town4', 'dungeon4'], ['dungeon4', 'field'],
+];
+
+// ============================================================
 // 宝箱
 // ============================================================
 const CHESTS = [
@@ -589,6 +618,13 @@ const NPCS = [
   {
     id: 'elder', map: 'town', x: 7, y: 2, glyph: '長', color: '#e0c26b',
     lines(state) {
+      if (state.player.masteredJobs && state.player.masteredJobs.includes('hero')) {
+        return [
+          '五つの基本職、四つの上位職……そのすべてを極めるとは。',
+          'もはや、儂がそなたに教えられることは何もない。',
+          'そなたこそ、まことの「勇者の証」を手にした者じゃ。',
+        ];
+      }
       if (state.flags.bossDefeated) {
         return ['勇者よ、そなたのおかげで村に平和が戻った。', 'この村はいつまでもそなたを誇りに思うだろう。'];
       }
@@ -1031,18 +1067,26 @@ const COMPANIONS = {
 
 // ============================================================
 // 職業 (てんしょく) - 職業ごとにステータス倍率と職業レベルを持つ
+// tier1: 基本職  tier2: 上位職(基本職2つをマスターすると解放)
+// tier3: 最上位職「ゆうしゃ」(上位職をすべてマスターすると解放)
 // ============================================================
 const JOBS = {
-  warrior: { id: 'warrior', name: 'せんし', atkMod: 1.25, defMod: 1.15, mpMod: 0.5, desc: '守りとちからに優れた戦士。' },
-  mage: { id: 'mage', name: 'まほうつかい', atkMod: 0.85, defMod: 0.85, mpMod: 1.6, desc: '攻撃魔法を得意とする魔法使い。' },
-  priest: { id: 'priest', name: 'そうりょ', atkMod: 0.9, defMod: 1.0, mpMod: 1.3, desc: '回復魔法を得意とする僧侶。' },
-  thief: { id: 'thief', name: 'とうぞく', atkMod: 1.1, defMod: 0.9, mpMod: 0.8, desc: 'すばやさに優れ、逃げ足も速い盗賊。' },
-  monk: { id: 'monk', name: 'ぶとうか', atkMod: 1.15, defMod: 1.0, mpMod: 0.6, desc: '素手での攻撃を極めた武闘家。' },
+  warrior: { id: 'warrior', name: 'せんし', tier: 1, requires: [], atkMod: 1.25, defMod: 1.15, mpMod: 0.5, desc: '守りとちからに優れた戦士。' },
+  mage: { id: 'mage', name: 'まほうつかい', tier: 1, requires: [], atkMod: 0.85, defMod: 0.85, mpMod: 1.6, desc: '攻撃魔法を得意とする魔法使い。' },
+  priest: { id: 'priest', name: 'そうりょ', tier: 1, requires: [], atkMod: 0.9, defMod: 1.0, mpMod: 1.3, desc: '回復魔法を得意とする僧侶。' },
+  thief: { id: 'thief', name: 'とうぞく', tier: 1, requires: [], atkMod: 1.1, defMod: 0.9, mpMod: 0.8, desc: 'すばやさに優れ、逃げ足も速い盗賊。' },
+  monk: { id: 'monk', name: 'ぶとうか', tier: 1, requires: [], atkMod: 1.15, defMod: 1.0, mpMod: 0.6, desc: '素手での攻撃を極めた武闘家。' },
+  sage: { id: 'sage', name: 'けんじゃ', tier: 2, requires: ['mage', 'priest'], atkMod: 1.1, defMod: 1.1, mpMod: 2.0, desc: '【上位職】まほうつかいとそうりょ、両方の極意を継ぐ者。攻守魔すべてに秀でる。' },
+  spellblade: { id: 'spellblade', name: 'まほうせんし', tier: 2, requires: ['warrior', 'mage'], atkMod: 1.4, defMod: 1.15, mpMod: 1.15, desc: '【上位職】せんしとまほうつかい、剣と魔法を併せ持つ戦士。' },
+  ranger: { id: 'ranger', name: 'レンジャー', tier: 2, requires: ['thief', 'monk'], atkMod: 1.35, defMod: 1.1, mpMod: 0.75, desc: '【上位職】とうぞくとぶとうかの技を極めた旅の狩人。' },
+  paladin: { id: 'paladin', name: 'パラディン', tier: 2, requires: ['warrior', 'priest'], atkMod: 1.25, defMod: 1.45, mpMod: 1.05, desc: '【上位職】せんしとそうりょ、誓いを胸に戦う聖騎士。' },
+  hero: { id: 'hero', name: 'ゆうしゃ', tier: 3, requires: ['sage', 'spellblade', 'ranger', 'paladin'], atkMod: 1.5, defMod: 1.4, mpMod: 1.6, desc: '【最上位職】五つの基本職と四つの上位職、そのすべてを極めし真の勇者。' },
 };
 const JOB_MAX_LEVEL = 20;
-function jobExpToReach(lv) {
+function jobExpToReach(lv, tier) {
   if (lv <= 1) return 0;
-  return Math.floor(Math.pow(lv, 2.1) * 6);
+  const t = tier || 1;
+  return Math.floor(Math.pow(lv, 2.1) * 6 * (1 + (t - 1) * 0.6));
 }
 
 // ============================================================
@@ -1083,6 +1127,21 @@ const ACHIEVEMENTS = [
     id: 'arenaChampion', name: '闘技場の覇者', desc: '闘技場で10連勝する',
     check(state) { return (state.flags.arenaBestWave || 0) >= 10; },
     reward: { equip: 'medal_champion' },
+  },
+  {
+    id: 'upperJob', name: '継承の証', desc: 'いずれかの上位職をマスターする',
+    check(state) { return (state.player.masteredJobs || []).some((id) => JOBS[id] && JOBS[id].tier === 2); },
+    reward: { equip: 'medal_ascended' },
+  },
+  {
+    id: 'trueHero', name: '勇者の証', desc: '最上位職「ゆうしゃ」をマスターする',
+    check(state) { return (state.player.masteredJobs || []).includes('hero'); },
+    reward: { equip: 'crown_true_hero' },
+  },
+  {
+    id: 'worldMapped', name: '世界を知る者', desc: 'すべての土地を踏破する',
+    check(state) { return WORLD_MAP_NODES.every((n) => state.flags.visitedMaps && state.flags.visitedMaps[n.id]); },
+    reward: { equip: 'medal_cartographer' },
   },
 ];
 
@@ -1232,6 +1291,9 @@ const EQUIPMENT = {
   medal_savior: { id: 'medal_savior', name: '村の救世主の証', type: 'accessory', atk: 5, def: 5, price: 0 },
   medal_master: { id: 'medal_master', name: '熟練の証', type: 'accessory', atk: 4, def: 4, price: 0 },
   medal_champion: { id: 'medal_champion', name: '闘技場チャンピオンの証', type: 'accessory', atk: 7, def: 7, price: 0 },
+  medal_ascended: { id: 'medal_ascended', name: '継承の証', type: 'accessory', atk: 8, def: 8, price: 0 },
+  crown_true_hero: { id: 'crown_true_hero', name: '勇者の証', type: 'accessory', atk: 20, def: 20, price: 0 },
+  medal_cartographer: { id: 'medal_cartographer', name: '踏破の証', type: 'accessory', atk: 6, def: 6, price: 0 },
 };
 
 // ============================================================
@@ -1406,5 +1468,6 @@ if (typeof module !== 'undefined') {
     townStage, townGridForStage, TOWN_GRIDS_BY_STAGE, TOWN_BG_COLORS, mainQuestStageText,
     GROTTO_RANKS, generateGrottoGrid, JOBS, JOB_MAX_LEVEL, jobExpToReach,
     REPUTATION_RANKS, reputationRankIndex, ACHIEVEMENTS,
+    WORLD_MAP_NODES, WORLD_MAP_EDGES,
   };
 }

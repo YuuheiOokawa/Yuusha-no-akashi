@@ -557,6 +557,10 @@ function triggerEnding() {
   if (state.flags.voidDefeated) {
     lines.push('深淵の主すら打ち倒したその名は、もはや神話の域に達していた。');
   }
+  if (state.player.masteredJobs && state.player.masteredJobs.includes('hero')) {
+    lines.push('五つの職業と四つの流派、そのすべてを極めた者だけが辿り着く境地。');
+    lines.push('人々はその姿を、こう呼んだ ―― 「勇者の証」を持つ者、と。');
+  }
   const doneQuests = SIDE_QUESTS.filter((q) => state.flags[q.doneFlag]);
   if (doneQuests.length === SIDE_QUESTS.length) {
     lines.push('村人たちの悩みもすべて解決し、誰もが笑顔で勇者を見送った。');
@@ -638,7 +642,7 @@ function activateCheat() {
   p.jobLevels = p.jobLevels || {};
   p.masteredJobs = p.masteredJobs || [];
   Object.keys(JOBS).forEach((id) => {
-    p.jobLevels[id] = { level: JOB_MAX_LEVEL, exp: jobExpToReach(JOB_MAX_LEVEL) };
+    p.jobLevels[id] = { level: JOB_MAX_LEVEL, exp: jobExpToReach(JOB_MAX_LEVEL, JOBS[id].tier) };
     if (!p.masteredJobs.includes(id)) p.masteredJobs.push(id);
   });
   state.flags.hasHolySword = true;

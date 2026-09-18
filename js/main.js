@@ -178,6 +178,7 @@ function defaultFlags() {
     lisaQuestActive: false, lisaQuestDone: false, lisaTalkCount: 0,
     bestiaryRewardGiven: false,
     loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
+    hermitQuestActive: false, hermitQuestDone: false, spritesFound: {},
     townReputation: 0, reputationRankSeen: 0, grottoClearsCounted: 0,
     arenaBestWave: 0, achievementsSeen: {},
     killCounts: {}, bestiary: {}, visitedMaps: {},

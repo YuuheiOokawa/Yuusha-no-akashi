@@ -154,6 +154,9 @@ function defaultFlags() {
     storyEnded: false, superbossDefeated: false,
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
+    cargoQuestActive: false, cargoFound: false, cargoQuestDone: false,
+    crabKingDefeated: false, voidDefeated: false,
+    iceSealObtained: false, sealBroken: false,
     killCounts: {}, bestiary: {}, visitedMaps: {},
   };
 }

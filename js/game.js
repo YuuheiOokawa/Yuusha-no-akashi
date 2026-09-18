@@ -19,6 +19,9 @@ const state = {
     storyEnded: false, superbossDefeated: false,
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
+    cargoQuestActive: false, cargoFound: false, cargoQuestDone: false,
+    crabKingDefeated: false, voidDefeated: false,
+    iceSealObtained: false, sealBroken: false,
     killCounts: {}, bestiary: {}, visitedMaps: {},
   },
   dialogue: null,
@@ -87,7 +90,7 @@ function movePlayer(dx, dy) {
   if (WARPS[key]) {
     const dest = WARPS[key];
     if (dest.map === BARRIER_MAP && !state.flags[BARRIER_FLAG]) {
-      showDialogue(['行く手に眩い光の結界が張られている。', '聖なる剣の力がなければ、この先には進めないようだ。']);
+      showDialogue(['行く手に眩い光の結界が張られている。', 'すべての封印を解かなければ、この先には進めないようだ。']);
       return;
     }
     doWarp(dest);
@@ -239,6 +242,18 @@ function endBattleVictory() {
       state.flags.superbossDefeated = true;
       addOwnedEquipment(p, 'sword_dawn');
       pushLog(b, '暁光の剣を手に入れた！');
+    } else if (b.scripted === 'voidboss') {
+      state.flags.voidDefeated = true;
+      addOwnedEquipment(p, 'sword_absolute');
+      pushLog(b, '終焉の剣を手に入れた！');
+    } else if (b.scripted === 'iceguardian') {
+      state.flags.iceSealObtained = true;
+      addOwnedEquipment(p, 'talisman_frost');
+      pushLog(b, '氷の護符を手に入れた！');
+    } else if (b.scripted === 'fallenknight') {
+      state.flags.sealBroken = true;
+      addOwnedEquipment(p, 'emblem_argus');
+      pushLog(b, '堕天騎士の紋章を手に入れた！');
     }
   }
   b.turn = 'won';
@@ -325,6 +340,18 @@ function closeBattle() {
     showDialogue(['暁光の剣を手に入れた……まさに夜明けの如き輝きだ。', '試練の塔に、もう思い残すことはなさそうだ。'], () => { state.screen = 'FIELD'; });
     return;
   }
+  if (won && scripted === 'voidboss') {
+    showDialogue(['終焉の剣を手にした今、もはや恐れるものは何もない……', 'この力こそ、すべての物語の果てに辿り着いた証だ。'], () => { state.screen = 'FIELD'; });
+    return;
+  }
+  if (won && scripted === 'iceguardian') {
+    showDialogue(['氷結の封印が解けていく……', 'あと一つ、レイヴンの町で手がかりを探そう。'], () => { state.screen = 'FIELD'; });
+    return;
+  }
+  if (won && scripted === 'fallenknight') {
+    showDialogue(['最後の封印が、音を立てて崩れていく……', 'これで、竜の結界を打ち破れるはずだ。村へ戻ろう。'], () => { state.screen = 'FIELD'; });
+    return;
+  }
   state.screen = 'FIELD';
 }
 
@@ -337,6 +364,9 @@ function triggerEnding() {
   if (state.flags.superbossDefeated) {
     lines.push('試練の塔に巣食っていた大魔導士ゼノンをも打ち倒し、');
     lines.push('勇者の名は伝説として語り継がれることとなった。');
+  }
+  if (state.flags.voidDefeated) {
+    lines.push('深淵の主すら打ち倒したその名は、もはや神話の域に達していた。');
   }
   const doneQuests = SIDE_QUESTS.filter((q) => state.flags[q.doneFlag]);
   if (doneQuests.length === SIDE_QUESTS.length) {

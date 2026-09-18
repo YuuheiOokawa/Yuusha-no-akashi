@@ -37,7 +37,9 @@ function mainQuestStageText(state) {
   const f = state.flags;
   if (f.storyEnded) return '勇者の物語は幕を閉じた。';
   if (f.bossDefeated) return '魔竜王を倒した。ルミナ村の長老に話しかけると物語を終えられる。';
-  if (f.hasHolySword) return '聖剣を手に、竜の洞窟の奥で魔竜王ガロズに挑もう。';
+  if (f.sealBroken) return '結界を打ち破る力を得た。竜の洞窟の奥で魔竜王ガロズに挑もう。';
+  if (f.iceSealObtained) return '氷結の封印は解けた。レイヴンの町で、最後の封印の手がかりを探そう。';
+  if (f.hasHolySword) return '聖剣を手にした。霧の荒野の先、鉱都ドルンガルを目指そう。';
   if (f.questAccepted) return 'フェルンの城下町で王に会い、聖剣のありかを聞こう。';
   return 'ルミナ村の長老に話しかけよう。';
 }
@@ -92,6 +94,8 @@ setTiles(fieldGrid, [[10, 0], [11, 0]], TILES.DOOR); // 北口 -> 村
 setRect(fieldGrid, 16, 11, 20, 13, TILES.MOUNTAIN);
 setTiles(fieldGrid, [[18, 13]], TILES.DOOR); // 洞窟入口(結界あり)
 setTiles(fieldGrid, [[21, 7], [21, 8]], TILES.DOOR); // 東口 -> フェルン城下町
+setTiles(fieldGrid, [[0, 7], [0, 8]], TILES.DOOR); // 西口 -> 月光の岬
+setTiles(fieldGrid, [[5, 15], [6, 15]], TILES.DOOR); // 南口 -> 忘却の大聖堂(近道、封印を解いた後に開通)
 setRect(fieldGrid, 2, 2, 4, 4, TILES.TREE);
 setRect(fieldGrid, 15, 2, 18, 3, TILES.TREE);
 setRect(fieldGrid, 3, 9, 6, 11, TILES.WATER);
@@ -153,6 +157,83 @@ setRect(ruinsGrid, 14, 6, 18, 9, TILES.FLOOR); // 東の小部屋(ミミック)
 setRect(ruinsGrid, 12, 7, 14, 8, TILES.FLOOR); // 接続通路
 setRect(ruinsGrid, 10, 3, 12, 7, TILES.FLOOR); // 最深部への通路
 setRect(ruinsGrid, 6, 1, 16, 4, TILES.FLOOR); // ガーディアンの間
+setTiles(ruinsGrid, [[6, 1]], TILES.DOOR); // ガーディアン撃破後、霧隠れの荒野への道が開ける
+
+// ============================================================
+// 霧隠れの荒野
+// ============================================================
+const field3Grid = buildMap(20, 16, TILES.GROUND);
+setBorder(field3Grid, TILES.TREE);
+setTiles(field3Grid, [[10, 0], [11, 0]], TILES.DOOR); // 北口 -> 古代遺跡
+setTiles(field3Grid, [[10, 15], [11, 15]], TILES.DOOR); // 南口 -> 鉱都ドルンガル
+setRect(field3Grid, 2, 2, 5, 5, TILES.TREE);
+setRect(field3Grid, 14, 2, 17, 5, TILES.TREE);
+setRect(field3Grid, 2, 10, 5, 13, TILES.TREE);
+setRect(field3Grid, 9, 7, 11, 9, TILES.WATER);
+
+// ============================================================
+// 鉱都ドルンガル
+// ============================================================
+const town3Grid = buildMap(18, 13, TILES.GROUND);
+setBorder(town3Grid, TILES.TREE);
+setTiles(town3Grid, [[8, 0], [9, 0]], TILES.DOOR); // 北口 -> 霧隠れの荒野
+setTiles(town3Grid, [[8, 12], [9, 12]], TILES.DOOR); // 南口 -> 氷結の祭壇
+setRect(town3Grid, 6, 5, 11, 7, TILES.MOUNTAIN);
+setRect(town3Grid, 2, 2, 4, 3, TILES.TREE);
+setRect(town3Grid, 13, 2, 15, 3, TILES.TREE);
+
+// ============================================================
+// 氷結の祭壇
+// ============================================================
+const dungeon3Grid = buildMap(22, 18, TILES.WALL);
+setRect(dungeon3Grid, 8, 15, 14, 17, TILES.FLOOR); // 入口の間
+setTiles(dungeon3Grid, [[10, 17], [11, 17]], TILES.DOOR); // 出口 -> 鉱都ドルンガル
+setRect(dungeon3Grid, 10, 11, 12, 15, TILES.FLOOR); // 上への通路
+setRect(dungeon3Grid, 4, 10, 7, 13, TILES.FLOOR); // 西の小部屋(宝箱)
+setRect(dungeon3Grid, 7, 11, 10, 12, TILES.FLOOR); // 接続通路
+setRect(dungeon3Grid, 10, 7, 12, 11, TILES.FLOOR); // 通路続き
+setRect(dungeon3Grid, 14, 6, 18, 9, TILES.FLOOR); // 東の小部屋(ミミック)
+setRect(dungeon3Grid, 12, 7, 14, 8, TILES.FLOOR); // 接続通路
+setRect(dungeon3Grid, 10, 3, 12, 7, TILES.FLOOR); // 最深部への通路
+setRect(dungeon3Grid, 6, 1, 16, 4, TILES.FLOOR); // 氷結の守護者の間
+setTiles(dungeon3Grid, [[6, 1]], TILES.DOOR); // 守護者撃破後、嘆きの荒地への道が開ける
+
+// ============================================================
+// 嘆きの荒地
+// ============================================================
+const field4Grid = buildMap(20, 16, TILES.GROUND);
+setBorder(field4Grid, TILES.TREE);
+setTiles(field4Grid, [[10, 0], [11, 0]], TILES.DOOR); // 北口 -> 氷結の祭壇
+setTiles(field4Grid, [[10, 15], [11, 15]], TILES.DOOR); // 南口 -> レイヴン
+setRect(field4Grid, 3, 3, 6, 5, TILES.TREE);
+setRect(field4Grid, 13, 3, 17, 5, TILES.TREE);
+setRect(field4Grid, 7, 9, 12, 11, TILES.WATER);
+
+// ============================================================
+// 聖域の門前町レイヴン
+// ============================================================
+const town4Grid = buildMap(18, 13, TILES.GROUND);
+setBorder(town4Grid, TILES.TREE);
+setTiles(town4Grid, [[8, 0], [9, 0]], TILES.DOOR); // 北口 -> 嘆きの荒地
+setTiles(town4Grid, [[8, 12], [9, 12]], TILES.DOOR); // 南口 -> 忘却の大聖堂
+setRect(town4Grid, 7, 2, 10, 4, TILES.WALL); // 聖域の門
+setRect(town4Grid, 2, 8, 4, 9, TILES.WATER);
+
+// ============================================================
+// 忘却の大聖堂
+// ============================================================
+const dungeon4Grid = buildMap(22, 18, TILES.WALL);
+setRect(dungeon4Grid, 8, 15, 14, 17, TILES.FLOOR); // 入口の間
+setTiles(dungeon4Grid, [[10, 17], [11, 17]], TILES.DOOR); // 出口 -> レイヴン
+setRect(dungeon4Grid, 10, 11, 12, 15, TILES.FLOOR); // 上への通路
+setRect(dungeon4Grid, 4, 10, 7, 13, TILES.FLOOR); // 西の小部屋(宝箱)
+setRect(dungeon4Grid, 7, 11, 10, 12, TILES.FLOOR); // 接続通路
+setRect(dungeon4Grid, 10, 7, 12, 11, TILES.FLOOR); // 通路続き
+setRect(dungeon4Grid, 14, 6, 18, 9, TILES.FLOOR); // 東の小部屋(宝箱)
+setRect(dungeon4Grid, 12, 7, 14, 8, TILES.FLOOR); // 接続通路
+setRect(dungeon4Grid, 10, 3, 12, 7, TILES.FLOOR); // 最終通路
+setRect(dungeon4Grid, 6, 1, 16, 4, TILES.FLOOR); // アルガスの間
+setTiles(dungeon4Grid, [[11, 1]], TILES.DOOR); // アルガス撃破後、リアーナ平原への近道が開ける
 
 // ============================================================
 // 試練の塔 (隠しダンジョン・魔竜王撃破後にのみ到達可能)
@@ -164,6 +245,29 @@ setRect(towerGrid, 7, 10, 8, 16, TILES.FLOOR); // 中層への階段
 setRect(towerGrid, 4, 7, 11, 10, TILES.FLOOR); // 試練の間 (宝箱・強敵)
 setRect(towerGrid, 7, 3, 8, 7, TILES.FLOOR); // 最上階への階段
 setRect(towerGrid, 4, 1, 11, 4, TILES.FLOOR); // 最上階 (大魔導士の間)
+setTiles(towerGrid, [[7, 1]], TILES.DOOR); // 大魔導士撃破後、深淵への道が開ける
+
+// ============================================================
+// 月光の岬 (リアーナ平原の西・探索エリア)
+// ============================================================
+const capeGrid = buildMap(18, 14, TILES.GROUND);
+setBorder(capeGrid, TILES.TREE);
+setTiles(capeGrid, [[17, 7], [17, 8]], TILES.DOOR); // 東口 -> リアーナ平原
+setRect(capeGrid, 1, 10, 16, 12, TILES.WATER); // 南に広がる海
+setRect(capeGrid, 3, 2, 5, 4, TILES.TREE);
+setRect(capeGrid, 12, 2, 14, 4, TILES.TREE);
+setTiles(capeGrid, [[9, 3]], TILES.STATUE); // 古い灯台の跡
+
+// ============================================================
+// 深淵の回廊 (隠しダンジョン・大魔導士ゼノン撃破後にのみ到達可能)
+// ============================================================
+const abyssGrid = buildMap(14, 16, TILES.WALL);
+setRect(abyssGrid, 5, 13, 8, 14, TILES.FLOOR); // 入口の間
+setTiles(abyssGrid, [[6, 14], [7, 14]], TILES.DOOR); // 試練の塔へ戻る道
+setRect(abyssGrid, 6, 8, 7, 13, TILES.FLOOR); // 下層通路
+setRect(abyssGrid, 3, 6, 10, 8, TILES.FLOOR); // 静寂の間 (宝箱)
+setRect(abyssGrid, 6, 3, 7, 6, TILES.FLOOR); // 最深部への通路
+setRect(abyssGrid, 2, 1, 11, 3, TILES.FLOOR); // 深淵の中枢 (最終決戦)
 
 // ============================================================
 // マップ定義
@@ -232,6 +336,75 @@ const MAPS = {
     startX: 7, startY: 17, startDir: 'up',
     bgColor: '#241830',
   },
+  cape: {
+    id: 'cape', name: '月光の岬', grid: capeGrid,
+    encounter: { rate: 0.08, table: [
+      { id: 'crab', weight: 5 },
+      { id: 'siren', weight: 3 },
+    ] },
+    startX: 16, startY: 7, startDir: 'left',
+    bgColor: '#0f3a4a',
+  },
+  abyss: {
+    id: 'abyss', name: '深淵の回廊', grid: abyssGrid,
+    encounter: { rate: 0.12, table: [
+      { id: 'void_wisp', weight: 1 },
+    ] },
+    startX: 6, startY: 13, startDir: 'up',
+    bgColor: '#0a0614',
+  },
+  field3: {
+    id: 'field3', name: '霧隠れの荒野', grid: field3Grid,
+    encounter: { rate: 0.08, table: [
+      { id: 'fog_wolf', weight: 5 },
+      { id: 'harpy', weight: 4 },
+      { id: 'wight', weight: 3 },
+    ] },
+    startX: 10, startY: 1, startDir: 'down',
+    bgColor: '#4a5a5a',
+  },
+  town3: {
+    id: 'town3', name: '鉱都ドルンガル', grid: town3Grid,
+    encounter: null,
+    startX: 8, startY: 1, startDir: 'down',
+    bgColor: '#3a3a4a',
+  },
+  dungeon3: {
+    id: 'dungeon3', name: '氷結の祭壇', grid: dungeon3Grid,
+    encounter: { rate: 0.10, table: [
+      { id: 'frost_soldier', weight: 4 },
+      { id: 'ice_wraith', weight: 4 },
+      { id: 'wight', weight: 3 },
+    ] },
+    startX: 11, startY: 16, startDir: 'up',
+    bgColor: '#1a2a3a',
+  },
+  field4: {
+    id: 'field4', name: '嘆きの荒地', grid: field4Grid,
+    encounter: { rate: 0.09, table: [
+      { id: 'cursed_knight', weight: 5 },
+      { id: 'banshee', weight: 4 },
+      { id: 'ogre', weight: 3 },
+    ] },
+    startX: 10, startY: 1, startDir: 'down',
+    bgColor: '#3a2a2a',
+  },
+  town4: {
+    id: 'town4', name: '聖域の門前町レイヴン', grid: town4Grid,
+    encounter: null,
+    startX: 8, startY: 1, startDir: 'down',
+    bgColor: '#2a2a3a',
+  },
+  dungeon4: {
+    id: 'dungeon4', name: '忘却の大聖堂', grid: dungeon4Grid,
+    encounter: { rate: 0.10, table: [
+      { id: 'fallen_priest', weight: 4 },
+      { id: 'stone_gargoyle', weight: 4 },
+      { id: 'ogre', weight: 3 },
+    ] },
+    startX: 11, startY: 16, startDir: 'up',
+    bgColor: '#241820',
+  },
 };
 
 // ============================================================
@@ -259,11 +432,43 @@ const WARPS = {
   'cave:11:1': { map: 'tower', x: 7, y: 17, dir: 'up' },
   'tower:7:18': { map: 'cave', x: 11, y: 2, dir: 'down' },
   'tower:8:18': { map: 'cave', x: 11, y: 2, dir: 'down' },
+  'field:0:7': { map: 'cape', x: 16, y: 7, dir: 'left' },
+  'field:0:8': { map: 'cape', x: 16, y: 8, dir: 'left' },
+  'cape:17:7': { map: 'field', x: 1, y: 7, dir: 'right' },
+  'cape:17:8': { map: 'field', x: 1, y: 8, dir: 'right' },
+  'tower:7:1': { map: 'abyss', x: 6, y: 13, dir: 'up' },
+  'abyss:6:14': { map: 'tower', x: 7, y: 2, dir: 'down' },
+  'abyss:7:14': { map: 'tower', x: 7, y: 2, dir: 'down' },
+  'ruins:6:1': { map: 'field3', x: 10, y: 1, dir: 'down' },
+  'field3:10:0': { map: 'ruins', x: 11, y: 2, dir: 'down' },
+  'field3:11:0': { map: 'ruins', x: 11, y: 2, dir: 'down' },
+  'field3:10:15': { map: 'town3', x: 8, y: 1, dir: 'down' },
+  'field3:11:15': { map: 'town3', x: 9, y: 1, dir: 'down' },
+  'town3:8:0': { map: 'field3', x: 10, y: 14, dir: 'up' },
+  'town3:9:0': { map: 'field3', x: 11, y: 14, dir: 'up' },
+  'town3:8:12': { map: 'dungeon3', x: 11, y: 16, dir: 'up' },
+  'town3:9:12': { map: 'dungeon3', x: 11, y: 16, dir: 'up' },
+  'dungeon3:10:17': { map: 'town3', x: 8, y: 11, dir: 'down' },
+  'dungeon3:11:17': { map: 'town3', x: 9, y: 11, dir: 'down' },
+  'dungeon3:6:1': { map: 'field4', x: 10, y: 1, dir: 'down' },
+  'field4:10:0': { map: 'dungeon3', x: 11, y: 2, dir: 'down' },
+  'field4:11:0': { map: 'dungeon3', x: 11, y: 2, dir: 'down' },
+  'field4:10:15': { map: 'town4', x: 8, y: 1, dir: 'down' },
+  'field4:11:15': { map: 'town4', x: 9, y: 1, dir: 'down' },
+  'town4:8:0': { map: 'field4', x: 10, y: 14, dir: 'up' },
+  'town4:9:0': { map: 'field4', x: 11, y: 14, dir: 'up' },
+  'town4:8:12': { map: 'dungeon4', x: 11, y: 16, dir: 'up' },
+  'town4:9:12': { map: 'dungeon4', x: 11, y: 16, dir: 'up' },
+  'dungeon4:10:17': { map: 'town4', x: 8, y: 11, dir: 'down' },
+  'dungeon4:11:17': { map: 'town4', x: 9, y: 11, dir: 'down' },
+  'dungeon4:11:1': { map: 'field', x: 6, y: 14, dir: 'down' },
+  'field:5:15': { map: 'dungeon4', x: 12, y: 2, dir: 'down' },
+  'field:6:15': { map: 'dungeon4', x: 12, y: 2, dir: 'down' },
 };
 
-// 竜の洞窟の入り口を封じる結界。聖剣を持たない限り通れない。
+// 竜の洞窟の入り口を封じる結界。2つの封印を解かない限り通れない。
 const BARRIER_MAP = 'cave';
-const BARRIER_FLAG = 'hasHolySword';
+const BARRIER_FLAG = 'sealBroken';
 
 // ============================================================
 // 宝箱
@@ -276,6 +481,14 @@ const CHESTS = [
   { id: 'chest_ruins2', map: 'ruins', x: 16, y: 7, item: null, gold: 0, mimic: true },
   { id: 'chest_tower1', map: 'tower', x: 5, y: 8, item: 'shield_aegis', gold: 0 },
   { id: 'chest_tower2', map: 'tower', x: 10, y: 8, item: 'armor_radiant', gold: 0 },
+  { id: 'chest_cape1', map: 'cape', x: 9, y: 8, item: null, gold: 60 },
+  { id: 'chest_abyss1', map: 'abyss', x: 4, y: 7, item: 'ring_eternity', gold: 0 },
+  { id: 'chest_field3_1', map: 'field3', x: 16, y: 12, item: null, gold: 70 },
+  { id: 'chest_dungeon3_1', map: 'dungeon3', x: 5, y: 11, item: null, gold: 90 },
+  { id: 'chest_dungeon3_2', map: 'dungeon3', x: 16, y: 7, item: null, gold: 0, mimic: true },
+  { id: 'chest_field4_1', map: 'field4', x: 16, y: 12, item: null, gold: 90 },
+  { id: 'chest_dungeon4_1', map: 'dungeon4', x: 5, y: 11, item: null, gold: 120 },
+  { id: 'chest_dungeon4_2', map: 'dungeon4', x: 16, y: 7, item: 'item_elixir', gold: 0 },
 ];
 
 // ============================================================
@@ -294,6 +507,22 @@ const SCRIPTED_ENCOUNTERS = [
     id: 'superboss', map: 'tower', x: 7, y: 2, monster: 'archmage_zenon', flag: 'superbossDefeated',
     introLines: ['塔の最奥、渦巻く魔力の中心に、何者かが佇んでいた。', '試練の塔の主、大魔導士ゼノンが姿を現した！'],
   },
+  {
+    id: 'iceguardian', map: 'dungeon3', x: 11, y: 2, monster: 'frost_warden', flag: 'iceSealObtained',
+    introLines: ['祭壇の奥、氷が渦を巻いて人の形をとった……', '氷結の守護者が目を覚ました！'],
+  },
+  {
+    id: 'fallenknight', map: 'dungeon4', x: 11, y: 2, monster: 'argus', flag: 'sealBroken',
+    introLines: ['大聖堂の最奥、崩れた祭壇の前に甲冑の騎士が立っていた。', '堕天の騎士アルガスが、剣を抜いた！'],
+  },
+  {
+    id: 'crabking', map: 'cape', x: 9, y: 7, monster: 'crab_king', flag: 'crabKingDefeated',
+    introLines: ['岩場の奥から、ただならぬ気配がする……', '巨大な蟹「蟹の王」が姿を現した！'],
+  },
+  {
+    id: 'voidboss', map: 'abyss', x: 6, y: 2, monster: 'void_sovereign', flag: 'voidDefeated',
+    introLines: ['深淵の中心に、言葉にならない何かが渦巻いている……', '存在そのものが軋むような気配……「深淵の主」が姿を現した！'],
+  },
 ];
 
 // ============================================================
@@ -306,8 +535,14 @@ const NPCS = [
       if (state.flags.bossDefeated) {
         return ['勇者よ、そなたのおかげで村に平和が戻った。', 'この村はいつまでもそなたを誇りに思うだろう。'];
       }
+      if (state.flags.sealBroken) {
+        return ['ついに結界を打ち破る力を手にしたのじゃな！', '気をつけて、魔竜王ガロズを倒しておくれ。'];
+      }
+      if (state.flags.iceSealObtained) {
+        return ['氷の封印は解けたか……あと一つ、封印の力が要る。', 'レイヴンの町で、最後の手がかりを探すのじゃ。'];
+      }
       if (state.flags.hasHolySword) {
-        return ['聖剣を手にしたか！ それならば竜の結界も破れよう。', '気をつけて、魔竜王ガロズを倒しておくれ。'];
+        return ['聖剣を手にしたか！ しかし、結界を破るにはまだ足りぬようじゃ。', '霧の荒野の先、鉱都ドルンガルに何か手がかりがあるかもしれぬ。'];
       }
       if (state.flags.questAccepted) {
         return ['竜の洞窟の入り口は強い結界に守られておる。', '東にあるフェルンの城下町で、王様に相談してみるとよい。'];
@@ -396,8 +631,14 @@ const NPCS = [
   {
     id: 'king', map: 'town2', x: 9, y: 2, glyph: '王', color: '#ffd54a',
     lines(state) {
+      if (state.flags.sealBroken) {
+        return ['見事、すべての封印を解いたのじゃな。', '健闘を祈る、勇者よ。竜の洞窟へ向かうがよい。'];
+      }
+      if (state.flags.iceSealObtained) {
+        return ['氷結の封印を解いたか！ しかし、まだ道半ばじゃ。', 'レイヴンの町で、最後の封印の手がかりを探すのじゃ。'];
+      }
       if (state.flags.hasHolySword) {
-        return ['聖剣の力、確かに感じるぞ。', 'その力で、竜の結界を打ち破るのじゃ。', '健闘を祈る、勇者よ。'];
+        return ['聖剣の力、確かに感じるぞ。', 'しかし竜の結界は、それだけでは破れぬらしい。', '霧の荒野の先、鉱都ドルンガルに道が続いておるようじゃ。'];
       }
       if (state.flags.guardianDefeated) {
         return ['ガーディアンを倒したというのか！', 'ならば聖剣は手に入れたはずじゃ。', '竜の洞窟へ向かうがよい。'];
@@ -480,6 +721,110 @@ const NPCS = [
       return ['(キラッ……)', '古びたロケットを見つけた！ フェルンの城下町に届けよう。'];
     },
   },
+  {
+    id: 'sailor', map: 'cape', x: 3, y: 7, glyph: '船', color: '#4a7a9a',
+    lines(state) {
+      if (state.flags.cargoQuestDone) {
+        return ['積荷が戻って、本当に助かったよ。ありがとう。'];
+      }
+      if (state.flags.cargoFound) {
+        state.flags.cargoQuestDone = true;
+        addOwnedEquipment(state.player, 'charm_sailor');
+        return ['おお、俺の積荷だ！ 無事だったのか！', 'これはお礼だ、受け取ってくれ。', '(船乗りのお守りを手に入れた！)'];
+      }
+      if (state.flags.cargoQuestActive) {
+        return ['積荷はまだ見つからないか……', 'この岬のどこかに流れ着いているはずなんだが。'];
+      }
+      state.flags.cargoQuestActive = true;
+      return [
+        '嵐で船が難破して、大事な積荷が波に流されちまったんだ。',
+        'この岬のどこかに流れ着いていると思うんだが……',
+        'もし見つけたら、届けてもらえないか？',
+      ];
+    },
+  },
+  {
+    id: 'lostCargo', map: 'cape', x: 15, y: 5, glyph: '荷', color: '#c9a227',
+    hidden(state) { return state.flags.cargoFound; },
+    lines(state) {
+      state.flags.cargoFound = true;
+      return ['(波に洗われた木箱を見つけた！)', '船乗りの積荷のようだ。届けてあげよう。'];
+    },
+  },
+  {
+    id: 'wandererField3', map: 'field3', x: 5, y: 8, glyph: '旅', color: '#c0c0c0',
+    lines() { return ['この霧の先に、鉱都ドルンガルがあるはずだ。', '氷の魔物に気をつけて進むといい。']; },
+  },
+  {
+    id: 'guildmaster', map: 'town3', x: 9, y: 3, glyph: '長', color: '#e0c26b',
+    lines(state) {
+      if (state.flags.iceSealObtained) {
+        return ['氷結の守護者を倒したというのか！', 'その力があれば、まだ先へ進めるはずじゃ。'];
+      }
+      return [
+        '鉱都ドルンガルへようこそ、旅の者よ。',
+        'この町の南、氷結の祭壇には古い封印が眠っておる。',
+        '竜の結界を打ち破るには、その封印の力が要るはずじゃ。',
+        '祭壇の奥には守護者がいるという。気をつけて行くのじゃ。',
+      ];
+    },
+  },
+  {
+    id: 'weapon3', map: 'town3', x: 4, y: 9, glyph: '武', color: '#6ba3e0',
+    shop: 'weapon3',
+    lines() { return ['ドルンガル特製の武具、見ていっておくれ。']; },
+  },
+  {
+    id: 'inn3', map: 'town3', x: 14, y: 9, glyph: '宿', color: '#e08a6b',
+    inn: true,
+    lines() { return ['冷えた体を温めていきな。']; },
+  },
+  {
+    id: 'villagerE', map: 'town3', x: 3, y: 6, glyph: '住', color: '#a0e06b',
+    lines() { return ['この町は氷結の祭壇を守る一族の末裔なんじゃ。']; },
+  },
+  {
+    id: 'villagerF', map: 'town3', x: 15, y: 6, glyph: '住', color: '#a0e06b',
+    lines() { return ['祭壇の守護者は昔から誰も倒せなかったらしい……', '勇者様なら、あるいは。']; },
+  },
+  {
+    id: 'wandererField4', map: 'field4', x: 5, y: 7, glyph: '旅', color: '#c0c0c0',
+    lines() { return ['この荒地を越えれば、聖域の門前町レイヴンだ。', 'もう一息だ、気を抜くなよ。']; },
+  },
+  {
+    id: 'priestess', map: 'town4', x: 11, y: 1, glyph: '巫', color: '#e0a0d0',
+    lines(state) {
+      if (state.flags.sealBroken) {
+        return ['ふたつの封印、共に打ち破られたのですね。', 'これで、竜の結界に立ち向かえるはずです。', '勇者よ、どうかご武運を。'];
+      }
+      if (state.flags.iceSealObtained) {
+        return [
+          '氷の封印を解いたのですね……あと一つです。',
+          'この町の南、忘却の大聖堂に、最後の封印が眠っています。',
+          '堕天の騎士アルガスが、それを守っているとか。',
+        ];
+      }
+      return ['ここは聖域の門前町。竜の結界には、二つの封印が絡んでいると伝わっています。'];
+    },
+  },
+  {
+    id: 'weapon4', map: 'town4', x: 4, y: 6, glyph: '武', color: '#6ba3e0',
+    shop: 'weapon4',
+    lines() { return ['聖域仕込みの守り、お売りしましょう。']; },
+  },
+  {
+    id: 'inn4', map: 'town4', x: 14, y: 6, glyph: '宿', color: '#e08a6b',
+    inn: true,
+    lines() { return ['最後の戦いに備えて、ゆっくり休んでいくといい。']; },
+  },
+  {
+    id: 'villagerG', map: 'town4', x: 3, y: 10, glyph: '住', color: '#a0e06b',
+    lines() { return ['大聖堂には近づかないようにしているんだ……', '何か恐ろしい気配がする。']; },
+  },
+  {
+    id: 'villagerH', map: 'town4', x: 15, y: 10, glyph: '住', color: '#a0e06b',
+    lines() { return ['勇者様、どうかご無事で。', 'この町のみんなが応援しています。']; },
+  },
 ];
 
 // ============================================================
@@ -489,6 +834,7 @@ const SIDE_QUESTS = [
   { id: 'dog', name: 'まいごの犬', activeFlag: 'dogQuestActive', doneFlag: 'dogQuestDone' },
   { id: 'wolfHunt', name: '狼退治', activeFlag: 'wolfQuestActive', doneFlag: 'wolfQuestDone' },
   { id: 'locket', name: '忘れ形見のロケット', activeFlag: 'locketQuestActive', doneFlag: 'locketQuestDone' },
+  { id: 'cargo', name: '流れ着いた積荷', activeFlag: 'cargoQuestActive', doneFlag: 'cargoQuestDone' },
 ];
 
 // ============================================================
@@ -530,6 +876,38 @@ const MAP_FIRST_VISIT_HINTS = {
     'この塔には尋常ではない気配が満ちている……',
     '試練が待ち受けているようだ。',
   ],
+  cape: [
+    'ここが月光の岬か。潮の香りがする……',
+    '何か落とし物でもないか、探してみよう。',
+  ],
+  field3: [
+    'ここが霧隠れの荒野か……',
+    '南に町の灯りが見える。鉱都ドルンガルを目指そう。',
+  ],
+  town3: [
+    'ここが鉱都ドルンガルか。',
+    '長の話を聞いてみよう。',
+  ],
+  dungeon3: [
+    '氷のように冷たい空気だ……',
+    '氷結の守護者がこの奥にいるはずだ。',
+  ],
+  field4: [
+    '荒涼とした嘆きの荒地だ……',
+    'レイヴンの町を目指して進もう。',
+  ],
+  town4: [
+    'ここが聖域の門前町レイヴンか。',
+    '巫女の話を聞いてみよう。',
+  ],
+  dungeon4: [
+    'ここが最後の封印の地、忘却の大聖堂か……',
+    '気を引き締めていこう。',
+  ],
+  abyss: [
+    '大魔導士を倒してもなお、道が続いていた……',
+    'この先に、まだ何かがいる。',
+  ],
 };
 
 // ============================================================
@@ -547,6 +925,14 @@ const SHOPS = {
   magic: {
     name: 'フェルン魔法店',
     items: ['item_herb', 'item_hi_herb', 'item_water', 'item_antidote', 'item_elixir', 'item_scroll', 'item_scroll_fire'],
+  },
+  weapon3: {
+    name: 'ドルンガル武具店',
+    items: ['shield_mythril', 'armor_mythril', 'shield_glacier', 'armor_frost', 'ring_focus', 'item_herb', 'item_hi_herb', 'item_water', 'item_elixir'],
+  },
+  weapon4: {
+    name: 'レイヴン聖具店',
+    items: ['shield_glacier', 'armor_frost', 'shield_sacred', 'armor_ward', 'item_hi_herb', 'item_elixir'],
   },
 };
 
@@ -571,6 +957,16 @@ const EQUIPMENT = {
   armor_radiant: { id: 'armor_radiant', name: '光の鎧', type: 'armor', def: 26, price: 0 },
   sword_dawn: { id: 'sword_dawn', name: '暁光の剣', type: 'weapon', atk: 46, price: 0 },
   locket_memory: { id: 'locket_memory', name: '思い出のロケット', type: 'accessory', atk: 3, def: 3, price: 0 },
+  charm_sailor: { id: 'charm_sailor', name: '船乗りのお守り', type: 'accessory', atk: 4, def: 4, price: 0 },
+  ring_eternity: { id: 'ring_eternity', name: '深淵の指輪', type: 'accessory', atk: 10, def: 10, price: 0 },
+  sword_absolute: { id: 'sword_absolute', name: '終焉の剣', type: 'weapon', atk: 58, price: 0 },
+  shield_glacier: { id: 'shield_glacier', name: '氷結の盾', type: 'shield', def: 15, price: 420 },
+  armor_frost: { id: 'armor_frost', name: '霜纏いの鎧', type: 'armor', def: 21, price: 480 },
+  ring_focus: { id: 'ring_focus', name: '集中の指輪', type: 'accessory', atk: 9, price: 380 },
+  talisman_frost: { id: 'talisman_frost', name: '氷の護符', type: 'accessory', atk: 5, def: 5, price: 0 },
+  shield_sacred: { id: 'shield_sacred', name: '聖域の盾', type: 'shield', def: 18, price: 650 },
+  armor_ward: { id: 'armor_ward', name: '結界の鎧', type: 'armor', def: 24, price: 720 },
+  emblem_argus: { id: 'emblem_argus', name: '堕天騎士の紋章', type: 'accessory', atk: 8, def: 8, price: 0 },
 };
 
 // ============================================================
@@ -667,6 +1063,42 @@ const MONSTERS = {
     id: 'archmage_zenon', name: '大魔導士ゼノン', hp: 300, atk: 34, def: 16, exp: 600, gold: 500,
     glyph: '導', color: '#6a2a8a', boss: true, statusImmune: true, resist: { thunder: 0.4 },
     desc: '試練の塔の最奥に君臨する大魔導士。雷への耐性を持つ。',
+  },
+  crab: { id: 'crab', name: '岩がに', hp: 22, atk: 12, def: 7, exp: 15, gold: 12, glyph: '蟹', color: '#c9603a', desc: '岬の岩場に潜む大きな蟹。硬い甲羅で身を守る。' },
+  siren: { id: 'siren', name: 'セイレーン', hp: 24, atk: 16, def: 3, exp: 19, gold: 17, glyph: '歌', color: '#4ac9c9', desc: '美しい歌声で船乗りを惑わすという海の魔物。' },
+  crab_king: {
+    id: 'crab_king', name: '蟹の王', hp: 75, atk: 20, def: 12, exp: 65, gold: 55,
+    glyph: '蟹', color: '#e0703a', boss: true,
+    desc: '月光の岬に伝わる巨大な蟹の王。分厚い甲羅と強靭な鋏を持つ。',
+  },
+  void_wisp: {
+    id: 'void_wisp', name: '深淵の残滓', hp: 60, atk: 30, def: 14, exp: 90, gold: 70,
+    glyph: '滲', color: '#2a1a3a', statusImmune: true, desc: '深淵にわだかまる、名もなき負の残滓。',
+  },
+  void_sovereign: {
+    id: 'void_sovereign', name: '深淵の主', hp: 400, atk: 40, def: 20, exp: 800, gold: 800,
+    glyph: '主', color: '#0a0014', boss: true, statusImmune: true,
+    desc: 'すべての果てに潜む、深淵そのもの。もはや言葉すら意味を持たない。',
+  },
+  fog_wolf: { id: 'fog_wolf', name: '霧狼', hp: 34, atk: 22, def: 8, exp: 48, gold: 32, glyph: '狼', color: '#8a9aa0', desc: '霧に紛れて忍び寄る狼。姿を捉えにくい。' },
+  harpy: { id: 'harpy', name: 'ハーピー', hp: 30, atk: 24, def: 6, exp: 45, gold: 30, glyph: '翼', color: '#c9b06a', desc: '鋭い鉤爪を持つ鳥人。空から急襲してくる。' },
+  wight: { id: 'wight', name: '亡者', hp: 40, atk: 21, def: 10, exp: 52, gold: 35, glyph: '亡', color: '#6a7a6a', desc: '荒野と祭壇をさまよう亡者。しつこく追ってくる。' },
+  frost_soldier: { id: 'frost_soldier', name: '氷結の兵士', hp: 46, atk: 25, def: 12, exp: 60, gold: 42, glyph: '氷', color: '#7ac9e0', desc: '祭壇を守るために凍らされた古の兵士。' },
+  ice_wraith: { id: 'ice_wraith', name: '氷の亡霊', hp: 38, atk: 27, def: 9, exp: 58, gold: 40, glyph: '霊', color: '#a0d0e0', desc: '冷気をまとう亡霊。触れると体温を奪われる。' },
+  frost_warden: {
+    id: 'frost_warden', name: '氷結の守護者', hp: 165, atk: 27, def: 16, exp: 260, gold: 170,
+    glyph: '守', color: '#4a9ac9', boss: true, statusImmune: true, resist: { ice: 0.4 },
+    desc: '氷結の祭壇の最奥を守る守護者。氷への耐性を持つ。',
+  },
+  cursed_knight: { id: 'cursed_knight', name: '呪われし騎士', hp: 48, atk: 28, def: 14, exp: 70, gold: 48, glyph: '騎', color: '#5a3a5a', desc: '呪いに蝕まれ彷徨う騎士。荒地に囚われ続けている。' },
+  banshee: { id: 'banshee', name: 'バンシー', hp: 42, atk: 30, def: 10, exp: 68, gold: 45, glyph: '泣', color: '#9a7ac0', poisonChance: 0.3, desc: '悲痛な叫びを上げる女の亡霊。触れると毒が回る。' },
+  ogre: { id: 'ogre', name: 'オーガ', hp: 58, atk: 29, def: 13, exp: 75, gold: 50, glyph: '鬼', color: '#a05a3a', desc: '荒地と大聖堂に棲む巨躯の鬼。力任せに殴りかかる。' },
+  fallen_priest: { id: 'fallen_priest', name: '堕ちた聖職者', hp: 50, atk: 31, def: 12, exp: 78, gold: 52, glyph: '堕', color: '#6a2a3a', desc: 'かつて聖域に仕えていたが、闇に堕ちた聖職者。' },
+  stone_gargoyle: { id: 'stone_gargoyle', name: '石像のガーゴイル', hp: 62, atk: 27, def: 18, exp: 80, gold: 55, glyph: '像', color: '#6a6a7a', desc: '大聖堂を守る石像の魔物。硬い体を持つ。' },
+  argus: {
+    id: 'argus', name: '堕天の騎士アルガス', hp: 205, atk: 32, def: 18, exp: 350, gold: 250,
+    glyph: '騎', color: '#3a2a4a', boss: true, statusImmune: true,
+    desc: '忘却の大聖堂の最奥に立つ堕天の騎士。最後の封印を守っている。',
   },
 };
 

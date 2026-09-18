@@ -93,14 +93,25 @@ function playerDef(p) {
   return Math.round(base * jobMod) + (s && s.def ? s.def : 0) + (a && a.def ? a.def : 0) + (acc && acc.def ? acc.def : 0) + masteryBonus + enh;
 }
 
+// 上位職の解放判定: 必要な職業をすべてマスターしていれば転職できる
+function isJobUnlocked(p, jobId) {
+  const job = JOBS[jobId];
+  if (!job) return false;
+  if (!job.requires || job.requires.length === 0) return true;
+  const mastered = p.masteredJobs || [];
+  return job.requires.every((r) => mastered.includes(r));
+}
+
 // 転職: 現在の職業を切り替え、MPの最大値を新しい職業の倍率で再計算する
 function switchJob(p, jobId) {
   const job = JOBS[jobId];
-  if (!job || p.job === jobId) return;
+  if (!job || p.job === jobId) return { ok: false, reason: 'same' };
+  if (!isJobUnlocked(p, jobId)) return { ok: false, reason: 'locked' };
   p.job = jobId;
   const base = statsForLevel(p.level);
   p.maxMp = Math.round(base.maxMp * job.mpMod);
   p.mp = Math.min(p.mp, p.maxMp);
+  return { ok: true };
 }
 
 // 職業経験値を加算し、職業レベルが上がったらそのぶんを返す。マスター時はmasteredを返す
@@ -110,7 +121,8 @@ function gainJobExp(p, amount) {
   if (!jd || jd.level >= JOB_MAX_LEVEL) return null;
   jd.exp += amount;
   let leveled = false;
-  while (jd.level < JOB_MAX_LEVEL && jd.exp >= jobExpToReach(jd.level + 1)) {
+  const tier = (JOBS[p.job] && JOBS[p.job].tier) || 1;
+  while (jd.level < JOB_MAX_LEVEL && jd.exp >= jobExpToReach(jd.level + 1, tier)) {
     jd.level += 1;
     leveled = true;
   }
@@ -181,7 +193,7 @@ function removeOwnedEquipment(p, equipId) {
 if (typeof module !== 'undefined') {
   module.exports = {
     statsForLevel, expToReach, createNewPlayer, playerAtk, playerDef, gainExp, fullHeal, addItem, removeItem,
-    refreshSpells, addOwnedEquipment, removeOwnedEquipment, switchJob, gainJobExp,
+    refreshSpells, addOwnedEquipment, removeOwnedEquipment, switchJob, gainJobExp, isJobUnlocked,
     ENHANCE_MAX_LEVEL, enhanceCost, enhanceEquipment,
   };
 }

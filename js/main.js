@@ -2,7 +2,7 @@
 // main.js - 描画・入力・メインループ
 // ============================================================
 
-const topOptions = ['どうぐ', '合成', '強化', 'てんしょく', 'なかま', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', '実績', 'ステータス', 'セーブ', 'とじる'];
+const topOptions = ['どうぐ', '合成', '強化', 'てんしょく', 'なかま', 'そうび', 'じゅもん', 'クエスト', 'せかいマップ', 'モンスター図鑑', '実績', 'ステータス', 'セーブ', 'とじる'];
 const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'ぼうぎょ', 'にげる'];
 
 // 文字がゆっくり表示されるスピード(1フレームあたりの文字数)
@@ -187,6 +187,7 @@ function defaultFlags() {
 function startNewGame(slot) {
   state.player = createNewPlayer('勇者');
   state.flags = defaultFlags();
+  state.flags.visitedMaps[state.player.map] = true;
   state.currentSlot = slot;
   state.screen = 'FIELD';
   showDialogue(OPENING_STORY, () => { state.screen = 'FIELD'; });
@@ -209,6 +210,7 @@ function continueGame(slot) {
   if (!state.player.masteredJobs) state.player.masteredJobs = [];
   if (!state.player.enhancements) state.player.enhancements = {};
   state.flags = Object.assign(defaultFlags(), data.flags || {});
+  state.flags.visitedMaps[state.player.map] = true;
   state.currentSlot = slot;
   state.screen = 'FIELD';
   // 不思議な洞窟の状態は保存されないので、その中でセーブされていた場合は村へ戻す
@@ -309,6 +311,12 @@ function menuKey(e) {
       else if (choice === 'じゅもん') {
         if (state.player.spells.length > 0) { m.mode = 'spell'; m.cursor = 0; m.msg = null; }
       } else if (choice === 'クエスト') { m.mode = 'quest'; }
+      else if (choice === 'せかいマップ') {
+        m.mode = 'worldmap';
+        const idx = WORLD_MAP_NODES.findIndex((n) => n.id === state.player.map);
+        m.cursor = idx >= 0 ? idx : 0;
+        m.msg = null;
+      }
       else if (choice === 'モンスター図鑑') { m.mode = 'bestiary'; m.cursor = 0; }
       else if (choice === '実績') { m.mode = 'achievements'; m.cursor = 0; }
       else if (choice === 'ステータス') { m.mode = 'status'; }
@@ -413,8 +421,36 @@ function menuKey(e) {
     else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % jobIds.length;
     else if (e.key === 'Enter' || e.key === ' ') {
       const id = jobIds[m.cursor];
-      switchJob(state.player, id);
-      m.msg = `${JOBS[id].name}に転職した！`;
+      if (!isJobUnlocked(state.player, id)) {
+        const need = JOBS[id].requires.map((r) => JOBS[r].name).join('・');
+        m.msg = `${need}をマスターすると転職できる！`;
+      } else {
+        const result = switchJob(state.player, id);
+        m.msg = result.ok ? `${JOBS[id].name}に転職した！` : `すでに${JOBS[id].name}になっている。`;
+      }
+    }
+    return;
+  }
+  if (m.mode === 'worldmap') {
+    if (e.key === 'Escape') { m.mode = 'top'; m.cursor = topOptions.indexOf('せかいマップ'); m.msg = null; return; }
+    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') m.cursor = (m.cursor - 1 + WORLD_MAP_NODES.length) % WORLD_MAP_NODES.length;
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') m.cursor = (m.cursor + 1) % WORLD_MAP_NODES.length;
+    else if (e.key === 'Enter' || e.key === ' ') {
+      const node = WORLD_MAP_NODES[m.cursor];
+      const visited = !!state.flags.visitedMaps[node.id] || node.id === state.player.map;
+      if (!visited) { m.msg = 'この地はまだ調べていないようだ。'; return; }
+      if (node.id === state.player.map) { m.msg = 'すでにこの地にいる。'; return; }
+      if (node.type !== 'town') { m.msg = 'この地へは、自分の足で向かう必要があるようだ。'; return; }
+      const dest = MAPS[node.id];
+      showConfirm([`${node.name}へ旅立ちますか？`], (yes) => {
+        if (yes) {
+          state.player.map = node.id; state.player.x = dest.startX; state.player.y = dest.startY; state.player.dir = dest.startDir;
+          state.menu = null;
+          state.screen = 'FIELD';
+        } else {
+          state.screen = 'MENU';
+        }
+      });
     }
     return;
   }
@@ -811,20 +847,83 @@ function drawMenu() {
     return;
   }
   if (m.mode === 'job') {
-    drawPanel(60, 20, 520, 300);
+    drawPanel(40, 8, 560, 464);
     const jobIds = Object.keys(JOBS);
     const p = state.player;
+    drawText(60, 22, `てんしょく　(現在: ${JOBS[p.job].name} Lv${p.jobLevels[p.job].level})`, { font: '14px', color: '#ffd54a' });
     jobIds.forEach((id, i) => {
       const job = JOBS[id];
       const jd = p.jobLevels[id];
-      const mastered = p.masteredJobs.includes(id) ? ' ★マスター' : '';
+      const unlocked = isJobUnlocked(p, id);
+      const mastered = p.masteredJobs.includes(id) ? ' ★' : '';
       const current = p.job === id ? ' (現在)' : '';
-      drawText(80, 40 + i * 36, (m.cursor === i ? '▶ ' : '　') + `${job.name}　Lv${jd.level}${mastered}${current}`, { font: '15px' });
+      const tierTag = job.tier === 3 ? '【最上位職】' : job.tier === 2 ? '【上位職】' : '';
+      const label = unlocked
+        ? `${tierTag}${job.name}　Lv${jd.level}${mastered}${current}`
+        : `${tierTag}${job.name}　？？？(未解放)`;
+      drawText(60, 46 + i * 30, (m.cursor === i ? '▶ ' : '　') + label, { font: '13px', color: unlocked ? '#fff' : '#777' });
     });
-    const curJob = JOBS[jobIds[m.cursor]];
-    drawText(80, 40 + jobIds.length * 36 + 10, curJob.desc, { font: '12px', color: '#aaa' });
-    if (m.msg) drawText(80, 270, m.msg, { font: '13px', color: '#ffd54a' });
-    drawText(80, 290, 'Enter:てんしょくする　Esc:もどる', { font: '12px', color: '#aaa' });
+    const curId = jobIds[m.cursor];
+    const curJob = JOBS[curId];
+    const descY = 46 + jobIds.length * 30 + 14;
+    if (isJobUnlocked(p, curId)) {
+      drawText(60, descY, curJob.desc, { font: '12px', color: '#aaa' });
+    } else {
+      const need = curJob.requires.map((r) => JOBS[r].name).join('・');
+      drawText(60, descY, `必要: ${need} をマスター(Lv${JOB_MAX_LEVEL})すること`, { font: '12px', color: '#e08a6b' });
+    }
+    if (m.msg) drawText(60, descY + 22, m.msg, { font: '12px', color: '#ffd54a' });
+    drawText(60, 448, 'Enter:てんしょくする　Esc:もどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'worldmap') {
+    drawPanel(20, 10, 600, 460);
+    drawText(320, 22, 'せかいの地図', { align: 'center', font: 'bold 16px', color: '#ffd54a' });
+    const ox = 50, oy = 60;
+    const typeColor = { town: '#ffd54a', field: '#6bc96b', dungeon: '#9a7ac0' };
+    WORLD_MAP_EDGES.forEach(([a, b]) => {
+      const na = WORLD_MAP_NODES.find((n) => n.id === a);
+      const nb = WORLD_MAP_NODES.find((n) => n.id === b);
+      const va = !!state.flags.visitedMaps[a] || a === state.player.map;
+      const vb = !!state.flags.visitedMaps[b] || b === state.player.map;
+      ctx.strokeStyle = (va && vb) ? 'rgba(240,234,216,0.55)' : 'rgba(240,234,216,0.15)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ox + na.x, oy + na.y);
+      ctx.lineTo(ox + nb.x, oy + nb.y);
+      ctx.stroke();
+    });
+    WORLD_MAP_NODES.forEach((node, i) => {
+      const visited = !!state.flags.visitedMaps[node.id] || node.id === state.player.map;
+      const px = ox + node.x, py = oy + node.y;
+      const selected = m.cursor === i;
+      const isHere = node.id === state.player.map;
+      ctx.fillStyle = visited ? (typeColor[node.type] || '#fff') : '#444';
+      ctx.beginPath();
+      if (node.type === 'town') { ctx.arc(px, py, 8, 0, Math.PI * 2); }
+      else if (node.type === 'dungeon') {
+        ctx.moveTo(px, py - 9); ctx.lineTo(px + 8, py + 7); ctx.lineTo(px - 8, py + 7); ctx.closePath();
+      } else { ctx.arc(px, py, 6, 0, Math.PI * 2); }
+      ctx.fill();
+      ctx.strokeStyle = selected ? '#fff' : 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = selected ? 2.5 : 1;
+      ctx.stroke();
+      if (isHere) {
+        const pulse = 10 + Math.sin(state.frame * 0.15) * 2;
+        ctx.strokeStyle = '#ff5a3a';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(px, py, pulse, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (visited) drawText(px, py + 11, node.name, { align: 'center', font: '10px', color: selected ? '#ffd54a' : '#ddd' });
+    });
+    const cur = WORLD_MAP_NODES[m.cursor];
+    const curVisited = !!state.flags.visitedMaps[cur.id] || cur.id === state.player.map;
+    const typeLabel = { town: '町', field: '平野・岬', dungeon: 'ダンジョン' }[cur.type];
+    drawText(30, 432, curVisited ? `${cur.name}　(${typeLabel})` : '？？？（未探索の地）', { font: '13px', color: '#ffd54a' });
+    if (m.msg) drawText(30, 452, m.msg, { font: '12px', color: '#ff9a6b' });
+    drawText(590, 452, '↑↓←→:えらぶ　Enter:きめる/旅立つ　Esc:もどる', { align: 'right', font: '10px', color: '#aaa' });
     return;
   }
   if (m.mode === 'party') {

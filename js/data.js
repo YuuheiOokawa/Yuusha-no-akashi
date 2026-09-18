@@ -853,8 +853,17 @@ const NPCS = [
   },
   {
     id: 'cloakedWanderer', map: 'cape', x: 8, y: 5, glyph: '？', color: '#6a5a8a',
-    hidden(state) { return state.flags.loreStonesComplete; },
+    // 石版を集め終えると深淵の回廊へ向かい、深淵の主を倒すまでこの岬には戻らない
+    hidden(state) { return state.flags.loreStonesComplete && !state.flags.voidDefeated; },
     lines(state) {
+      if (state.flags.voidDefeated) {
+        return [
+          '(旅人が、憑き物が落ちたような穏やかな顔でこちらを見ている)',
+          '……ありがとう。おかげで、皆ようやく安らかに眠れる。',
+          '私はもう少しだけ、この光景を見ていたい。',
+          'どうか、この景色を――そしてあなたの旅を、忘れないでいてくれ。',
+        ];
+      }
       if (state.flags.loreStonesStarted) {
         return [
           '……古い石版を探しているようだな。',
@@ -868,6 +877,20 @@ const NPCS = [
         '……月の光は、何もかも見透かすようで、何も見せてくれない。',
         'かつてここで、道を違えた者たちがいたという。',
         '……いや、忘れてくれ。ただの独り言だ。',
+      ];
+    },
+  },
+  {
+    id: 'cloakedWandererAbyss', map: 'abyss', x: 5, y: 7, glyph: '？', color: '#6a5a8a',
+    // 石版をすべて読み解いた後、深淵の主を倒すまでの間だけ現れる
+    hidden(state) { return !state.flags.loreStonesComplete || state.flags.voidDefeated; },
+    lines(state) {
+      return [
+        '(石版の傍らに、あの岬にいた旅人が佇んでいる)',
+        '……すべてを知ってしまったのだな。',
+        '私もまた、竜を封じたあの日、道を違えた一人だ。',
+        '闇に堕ちることも、戦い続けることもできず、ただここに留まり続けている。',
+        'どうか、私の同胞たちを――安らかに眠らせてやってはくれないか。',
       ];
     },
   },

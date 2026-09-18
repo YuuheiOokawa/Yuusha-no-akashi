@@ -2,7 +2,7 @@
 // main.js - 描画・入力・メインループ
 // ============================================================
 
-const topOptions = ['どうぐ', '合成', 'てんしょく', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', 'ステータス', 'セーブ', 'とじる'];
+const topOptions = ['どうぐ', '合成', '強化', 'てんしょく', 'なかま', 'そうび', 'じゅもん', 'クエスト', 'モンスター図鑑', '実績', 'ステータス', 'セーブ', 'とじる'];
 const mainCommands = ['たたかう', 'じゅもん', 'どうぐ', 'ぼうぎょ', 'にげる'];
 
 // 文字がゆっくり表示されるスピード(1フレームあたりの文字数)
@@ -172,9 +172,11 @@ function defaultFlags() {
     wolfQuestActive: false, wolfQuestDone: false,
     locketQuestActive: false, locketFound: false, locketQuestDone: false,
     kainQuestActive: false, swordFound: false, kainQuestDone: false, kainTalkCount: 0,
+    lisaQuestActive: false, lisaQuestDone: false, lisaTalkCount: 0,
     bestiaryRewardGiven: false,
     loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
     townReputation: 0, reputationRankSeen: 0, grottoClearsCounted: 0,
+    arenaBestWave: 0, achievementsSeen: {},
     killCounts: {}, bestiary: {}, visitedMaps: {},
   };
 }
@@ -194,11 +196,15 @@ function continueGame(slot) {
   if (!state.player.ownedEquipment) state.player.ownedEquipment = [state.player.weapon].filter(Boolean);
   if (state.player.accessory === undefined) state.player.accessory = null;
   if (state.player.companion === undefined) state.player.companion = null;
+  if (!state.player.recruitedCompanions) {
+    state.player.recruitedCompanions = state.player.companion ? [state.player.companion] : [];
+  }
   if (!state.player.job) state.player.job = 'warrior';
   if (!state.player.jobLevels) {
     state.player.jobLevels = Object.keys(JOBS).reduce((acc, id) => { acc[id] = { level: 1, exp: 0 }; return acc; }, {});
   }
   if (!state.player.masteredJobs) state.player.masteredJobs = [];
+  if (!state.player.enhancements) state.player.enhancements = {};
   state.flags = Object.assign(defaultFlags(), data.flags || {});
   state.currentSlot = slot;
   state.screen = 'FIELD';
@@ -293,12 +299,15 @@ function menuKey(e) {
       const choice = topOptions[m.cursor];
       if (choice === 'どうぐ') { m.mode = 'item'; m.cursor = 0; m.msg = null; }
       else if (choice === '合成') { m.mode = 'craft'; m.cursor = 0; m.msg = null; }
+      else if (choice === '強化') { m.mode = 'enhance'; m.cursor = 0; m.msg = null; }
       else if (choice === 'てんしょく') { m.mode = 'job'; m.cursor = 0; m.msg = null; }
+      else if (choice === 'なかま') { m.mode = 'party'; m.cursor = 0; }
       else if (choice === 'そうび') { m.mode = 'equipSlot'; m.cursor = 0; }
       else if (choice === 'じゅもん') {
         if (state.player.spells.length > 0) { m.mode = 'spell'; m.cursor = 0; m.msg = null; }
       } else if (choice === 'クエスト') { m.mode = 'quest'; }
       else if (choice === 'モンスター図鑑') { m.mode = 'bestiary'; m.cursor = 0; }
+      else if (choice === '実績') { m.mode = 'achievements'; m.cursor = 0; }
       else if (choice === 'ステータス') { m.mode = 'status'; }
       else if (choice === 'セーブ') { saveGame(state.currentSlot); m.msg = 'ぼうけんの書にきろくした！'; }
       else if (choice === 'とじる') { state.screen = 'FIELD'; state.menu = null; }
@@ -404,6 +413,36 @@ function menuKey(e) {
       switchJob(state.player, id);
       m.msg = `${JOBS[id].name}に転職した！`;
     }
+    return;
+  }
+  if (m.mode === 'party') {
+    const list = [null, ...(state.player.recruitedCompanions || [])];
+    if (e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; return; }
+    if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + list.length) % list.length;
+    else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % list.length;
+    else if (e.key === 'Enter' || e.key === ' ') {
+      state.player.companion = list[m.cursor];
+      m.mode = 'top'; m.cursor = 0;
+    }
+    return;
+  }
+  if (m.mode === 'enhance') {
+    const list = state.player.ownedEquipment;
+    if (e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; m.msg = null; return; }
+    if (list.length === 0) { if (e.key === 'Enter' || e.key === ' ') { m.mode = 'top'; m.cursor = 0; } return; }
+    if (e.key === 'ArrowUp') m.cursor = (m.cursor - 1 + list.length) % list.length;
+    else if (e.key === 'ArrowDown') m.cursor = (m.cursor + 1) % list.length;
+    else if (e.key === 'Enter' || e.key === ' ') {
+      const id = list[m.cursor];
+      const result = enhanceEquipment(state.player, id);
+      if (result.ok) m.msg = `${EQUIPMENT[id].name}を+${result.level}に強化した！ (-${result.cost}G)`;
+      else if (result.reason === 'max') m.msg = 'これ以上は強化できない！';
+      else m.msg = `ゴールドが足りない！ (必要:${result.cost}G)`;
+    }
+    return;
+  }
+  if (m.mode === 'achievements') {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { m.mode = 'top'; m.cursor = 0; }
   }
 }
 
@@ -488,14 +527,34 @@ function draw() {
   else if (state.screen === 'BATTLE') drawBattleUI();
 }
 
-function drawTitle() {
-  ctx.fillStyle = '#0a1428';
+// タイトル・スロット選択・エンディングで共有する夜空背景(グラデーション+星の瞬き)
+function drawStarrySky(topColor, bottomColor) {
+  const grad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+  grad.addColorStop(0, topColor);
+  grad.addColorStop(1, bottomColor);
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-  drawText(CANVAS_W / 2, 120, '勇者の証', { align: 'center', font: 'bold 40px', color: '#ffd54a' });
-  drawText(CANVAS_W / 2, 175, '～ 竜の洞窟の伝説 ～', { align: 'center', font: '16px', color: '#cfd8ff' });
+  for (let i = 0; i < 36; i++) {
+    const sx = (i * 53 + 17) % CANVAS_W;
+    const sy = (i * 97 + 31) % CANVAS_H;
+    const tw = (Math.sin(state.frame * 0.05 + i) + 1) / 2;
+    ctx.fillStyle = `rgba(255,255,255,${(0.15 + tw * 0.35).toFixed(2)})`;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+}
+
+function drawTitle() {
+  drawStarrySky('#060a1e', '#141c3c');
+  drawPanel(CANVAS_W / 2 - 230, 46, 460, 128);
+  drawText(CANVAS_W / 2, 84, '勇者の証', { align: 'center', font: 'bold 40px', color: '#ffd54a' });
+  drawText(CANVAS_W / 2, 138, '～ 竜の洞窟の伝説 ～', { align: 'center', font: '16px', color: '#cfd8ff' });
   const opts = titleOptions();
+  const boxH = opts.length * 40 + 26;
+  drawPanel(CANVAS_W / 2 - 140, 250, 280, boxH);
   opts.forEach((opt, i) => {
-    drawText(CANVAS_W / 2, 300 + i * 40, (state.titleCursor === i ? '▶ ' : '　') + opt, { align: 'center', font: '22px', color: '#fff' });
+    const selected = state.titleCursor === i;
+    const arrow = selected && Math.floor(state.frame / 15) % 2 === 0 ? '▶ ' : '　';
+    drawText(CANVAS_W / 2, 278 + i * 40, arrow + opt, { align: 'center', font: '22px', color: selected ? '#ffd54a' : '#fff' });
   });
   if (Math.floor(state.frame / 30) % 2 === 0) {
     drawText(CANVAS_W / 2, 440, '矢印キーで選択・Enterで決定', { align: 'center', font: '13px', color: '#8899cc' });
@@ -503,8 +562,7 @@ function drawTitle() {
 }
 
 function drawSlotSelect() {
-  ctx.fillStyle = '#0a1428';
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  drawStarrySky('#0a1428', '#1a2450');
   const s = state.slotSelect;
   drawText(CANVAS_W / 2, 60, s.mode === 'new' ? 'どのスロットに はじめますか？' : 'どのスロットを つづけますか？', { align: 'center', font: 'bold 20px', color: '#ffd54a' });
   const slots = listSaveSlots();
@@ -632,9 +690,11 @@ function drawConfirmBox() {
 function drawMenu() {
   const m = state.menu;
   if (m.mode === 'top') {
-    drawPanel(360, 12, 260, 320);
-    topOptions.forEach((opt, i) => drawText(380, 30 + i * 34, (m.cursor === i ? '▶ ' : '　') + opt, { font: '17px' }));
-    if (m.msg) drawText(380, 30 + topOptions.length * 34 + 6, m.msg, { font: '12px', color: '#ffd54a' });
+    const rowH = 28;
+    const menuH = Math.min(460, 36 + topOptions.length * rowH);
+    drawPanel(360, 12, 260, menuH);
+    topOptions.forEach((opt, i) => drawText(380, 28 + i * rowH, (m.cursor === i ? '▶ ' : '　') + opt, { font: '16px' }));
+    if (m.msg) drawText(380, 28 + topOptions.length * rowH + 6, m.msg, { font: '12px', color: '#ffd54a' });
     return;
   }
   if (m.mode === 'item') {
@@ -762,6 +822,53 @@ function drawMenu() {
     drawText(80, 40 + jobIds.length * 36 + 10, curJob.desc, { font: '12px', color: '#aaa' });
     if (m.msg) drawText(80, 270, m.msg, { font: '13px', color: '#ffd54a' });
     drawText(80, 290, 'Enter:てんしょくする　Esc:もどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'party') {
+    drawPanel(60, 20, 520, 300);
+    drawText(80, 36, 'なかま', { font: '15px', color: '#ffd54a' });
+    const roster = state.player.recruitedCompanions || [];
+    const list = [null, ...roster];
+    list.forEach((id, i) => {
+      const label = id === null ? 'だれもつれていかない' : COMPANIONS[id].name;
+      const current = state.player.companion === id ? ' (現在)' : '';
+      drawText(80, 66 + i * 30, (m.cursor === i ? '▶ ' : '　') + label + current, { font: '15px' });
+    });
+    if (roster.length === 0) drawText(80, 96, 'まだ仲間がいない。旅の中で出会えるはずだ。', { font: '12px', color: '#aaa' });
+    drawText(80, 290, 'Enter:えらぶ　Esc:もどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'enhance') {
+    drawPanel(40, 8, 560, 464);
+    const p = state.player;
+    const list = p.ownedEquipment;
+    drawText(60, 22, `そうび強化　所持金:${p.gold}G　(${Math.min(list.length, m.cursor + 1)}/${list.length})`, { font: '15px', color: '#ffd54a' });
+    if (list.length === 0) drawText(80, 52, 'そうびを持っていない。', { font: '14px' });
+    const visibleCount = 18;
+    let scroll = Math.max(0, Math.min(m.cursor - Math.floor(visibleCount / 2), list.length - visibleCount));
+    scroll = Math.max(0, scroll);
+    list.slice(scroll, scroll + visibleCount).forEach((id, vi) => {
+      const i = scroll + vi;
+      const eq = EQUIPMENT[id];
+      const level = (p.enhancements && p.enhancements[id]) || 0;
+      const maxed = level >= ENHANCE_MAX_LEVEL;
+      const label = maxed ? `${eq.name}　+${level} (MAX)` : `${eq.name}　+${level}　次:${enhanceCost(id, level + 1)}G`;
+      drawText(60, 52 + vi * 19, (m.cursor === i ? '▶ ' : '　') + label, { font: '12px', color: maxed ? '#888' : '#fff' });
+    });
+    if (m.msg) drawText(60, 428, m.msg, { font: '12px', color: '#ffd54a' });
+    drawText(60, 456, 'Enter:強化する　Esc:もどる', { font: '12px', color: '#aaa' });
+    return;
+  }
+  if (m.mode === 'achievements') {
+    drawPanel(50, 20, 540, 320);
+    drawText(70, 36, '実績', { font: '15px', color: '#ffd54a' });
+    ACHIEVEMENTS.forEach((a, i) => {
+      const done = !!(state.flags.achievementsSeen && state.flags.achievementsSeen[a.id]);
+      const mark = done ? '☑' : '☐';
+      drawText(70, 66 + i * 44, `${mark} ${a.name}`, { font: '14px', color: done ? '#ffd54a' : '#fff' });
+      drawText(90, 66 + i * 44 + 20, a.desc, { font: '11px', color: '#aaa' });
+    });
+    drawText(70, 320, 'Enterでもどる', { font: '12px', color: '#aaa' });
   }
 }
 
@@ -890,8 +997,7 @@ function drawBattleUI() {
 }
 
 function drawEnding() {
-  ctx.fillStyle = '#0a0a2a';
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  drawStarrySky('#0a0a2a', '#1c1040');
   drawText(CANVAS_W / 2, 90, '魔竜王ガロズを倒した！', { align: 'center', font: 'bold 24px', color: '#ffd54a' });
   const lines = [
     '光の聖剣が、闇に染まった竜の心を打ち砕いた。',
@@ -900,7 +1006,7 @@ function drawEnding() {
   ];
   const extra = state.endingExtraLines || [];
   if (extra.length > 0) { lines.push(''); extra.forEach((l) => lines.push(l)); }
-  lines.push('', `勇者${state.player.name}の物語は、こうして幕を閉じる……`, '', '- おわり -');
+  lines.push('', `${state.player.name}の物語は、こうして幕を閉じる……`, '', '- おわり -');
   const lineH = lines.length > 10 ? 24 : 28;
   lines.forEach((l, i) => drawText(CANVAS_W / 2, 150 + i * lineH, l, { align: 'center', font: '16px' }));
   if (Math.floor(state.frame / 30) % 2 === 0) {

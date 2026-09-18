@@ -1109,8 +1109,11 @@ function drawEnding() {
   const extra = state.endingExtraLines || [];
   if (extra.length > 0) { lines.push(''); extra.forEach((l) => lines.push(l)); }
   lines.push('', `${state.player.name}の物語は、こうして幕を閉じる……`, '', '- おわり -');
-  const lineH = lines.length > 10 ? 24 : 28;
-  lines.forEach((l, i) => drawText(CANVAS_W / 2, 150 + i * lineH, l, { align: 'center', font: '16px' }));
+  const many = lines.length > 14;
+  const lineH = many ? 18 : lines.length > 10 ? 22 : 28;
+  const startY = many ? 120 : 150;
+  const font = many ? '13px' : '16px';
+  lines.forEach((l, i) => drawText(CANVAS_W / 2, startY + i * lineH, l, { align: 'center', font }));
   if (Math.floor(state.frame / 30) % 2 === 0) {
     drawText(CANVAS_W / 2, 440, 'Enterでタイトルへ', { align: 'center', font: '13px', color: '#8899cc' });
   }

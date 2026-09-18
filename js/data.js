@@ -724,6 +724,13 @@ const NPCS = [
   {
     id: 'king', map: 'town2', x: 9, y: 2, glyph: '王', color: '#ffd54a',
     lines(state) {
+      if (state.flags.bossDefeated) {
+        return [
+          '魔竜王ガロズを討ち果たしたと聞いた時、余は涙を禁じ得なかった。',
+          'そなたの武勇は、この国の歴史に永遠に刻まれるであろう。',
+          'いつでもこの城を、そなたの故郷のように思ってくれ。',
+        ];
+      }
       if (state.flags.sealBroken) {
         return ['見事、すべての封印を解いたのじゃな。', '健闘を祈る、勇者よ。竜の洞窟へ向かうがよい。'];
       }
@@ -845,12 +852,35 @@ const NPCS = [
     },
   },
   {
+    id: 'cloakedWanderer', map: 'cape', x: 8, y: 5, glyph: '？', color: '#6a5a8a',
+    hidden(state) { return state.flags.loreStonesComplete; },
+    lines(state) {
+      if (state.flags.loreStonesStarted) {
+        return [
+          '……古い石版を探しているようだな。',
+          'この世界には、語られなかった歴史がある。',
+          '竜を封じた賢者たちの、その先の物語が。',
+          '知りたければ、竜の洞窟、試練の塔、そして深淵の回廊を巡るがいい。',
+        ];
+      }
+      return [
+        '(ローブを深く被った旅人が、古い灯台の跡をじっと見つめている)',
+        '……月の光は、何もかも見透かすようで、何も見せてくれない。',
+        'かつてここで、道を違えた者たちがいたという。',
+        '……いや、忘れてくれ。ただの独り言だ。',
+      ];
+    },
+  },
+  {
     id: 'wandererField3', map: 'field3', x: 5, y: 8, glyph: '旅', color: '#c0c0c0',
     lines() { return ['この霧の先に、鉱都ドルンガルがあるはずだ。', '氷の魔物に気をつけて進むといい。']; },
   },
   {
     id: 'guildmaster', map: 'town3', x: 9, y: 3, glyph: '長', color: '#e0c26b',
     lines(state) {
+      if (state.flags.bossDefeated) {
+        return ['魔竜王を討ち取ったという報せ、この鉱都にも届いておる。', 'そなたのような勇者が、我らの氷結の守護者を打ち破ったのも頷ける話じゃ。'];
+      }
       if (state.flags.iceSealObtained) {
         return ['氷結の守護者を倒したというのか！', 'その力があれば、まだ先へ進めるはずじゃ。'];
       }
@@ -887,6 +917,12 @@ const NPCS = [
   {
     id: 'priestess', map: 'town4', x: 11, y: 1, glyph: '巫', color: '#e0a0d0',
     lines(state) {
+      if (state.flags.bossDefeated) {
+        return [
+          '竜の脅威が去ったこと、この身に染み渡るように感じております。',
+          '聖域の加護が、これからもあなたと共にありますように。',
+        ];
+      }
       if (state.flags.sealBroken) {
         return ['ふたつの封印、共に打ち破られたのですね。', 'これで、竜の結界に立ち向かえるはずです。', '勇者よ、どうかご武運を。'];
       }
@@ -921,6 +957,12 @@ const NPCS = [
   {
     id: 'kain', map: 'town2', x: 18, y: 9, glyph: '剣', color: '#4a9ae0',
     lines(state) {
+      if (state.flags.kainQuestDone && state.flags.superbossDefeated) {
+        return [
+          '……礼を言うぜ。お前のおかげで、やっと兄との約束を果たせた。',
+          'この剣に懸けた誇りも、今度こそ胸を張っていられる。',
+        ];
+      }
       if (state.flags.kainQuestDone) {
         const count = (state.flags.kainTalkCount = (state.flags.kainTalkCount || 0) + 1);
         if (count === 1) return ['ああ、頼りにしてるぜ、相棒。', 'この剣は……昔、兄からもらった大切な剣なんだ。'];
@@ -950,6 +992,12 @@ const NPCS = [
   {
     id: 'lisa', map: 'field2', x: 15, y: 5, glyph: '祈', color: '#e0a0d0',
     lines(state) {
+      if (state.flags.lisaQuestDone && state.flags.storyEnded) {
+        return [
+          '旅の終わりに、こうしてあなたと分かち合えたこと……忘れません。',
+          'どうか、これからも健やかに。',
+        ];
+      }
       if (state.flags.lisaQuestDone) {
         const count = (state.flags.lisaTalkCount = (state.flags.lisaTalkCount || 0) + 1);
         if (count === 1) return ['ありがとうございます、おかげで森を抜けられそうです。', '私はリサ。旅の神官です。'];
@@ -1007,6 +1055,19 @@ const NPCS = [
     },
   },
   {
+    id: 'lore_abyss', map: 'abyss', x: 9, y: 7, glyph: '石', color: '#9a9a9a',
+    lines(state) {
+      return readLoreStone(state, 'lore_abyss', [
+        '消えかけた文字で綴られた、最後の石版がここにある。',
+        '……竜を封じた代償として、賢者たちの魂は少しずつ闇に蝕まれていった。',
+        'その闇が寄り集まって生まれたのが、この深淵という「主」なのだという。',
+        '最後まで正気を保った賢者が、ただ一人だけいた。',
+        '彼は仲間だった者たちの成れの果てと、独り戦い続ける道を選んだ。',
+        '……その名を、ゼノンという。',
+      ]);
+    },
+  },
+  {
     id: 'mapdealer', map: 'town2', x: 2, y: 6, glyph: '図', color: '#c9a227',
     shop: 'mapshop',
     lines() { return ['不思議な地図をお求めかい？', '地図が導く先には、誰も知らない洞窟が広がっているらしい。']; },
@@ -1018,19 +1079,22 @@ const NPCS = [
 ];
 
 // ============================================================
-// 古代の石版 (3枚すべて読むと隠された過去が明かされる)
+// 古代の石版 (4枚すべて読むと隠された過去が明かされる。最後の1枚は
+// 深淵の回廊にあり、魔竜王と試練の塔・深淵の主をも討った後にしか
+// たどり着けない、真の完結編となっている)
 // ============================================================
 function readLoreStone(state, id, text) {
   state.flags.loreStonesStarted = true;
   state.flags.loreStones[id] = true;
   const lines = text.slice();
-  const allIds = ['lore_ruins', 'lore_cave', 'lore_tower'];
+  const allIds = ['lore_ruins', 'lore_cave', 'lore_tower', 'lore_abyss'];
   const allFound = allIds.every((lid) => state.flags.loreStones[lid]);
   if (allFound && !state.flags.loreStonesComplete) {
     state.flags.loreStonesComplete = true;
     addOwnedEquipment(state.player, 'pendant_sage');
     lines.push('……すべての石版を読み解いた。');
-    lines.push('古の知恵が身を包み、「賢者の証」を手に入れた！');
+    lines.push('古の知恵と共に、深淵の真実が身を包む。');
+    lines.push('悲しみか、それとも覚悟か……その両方を胸に、「賢者の証」を手に入れた！');
     lines.push(...addReputation(10));
     lines.push(...checkAchievements());
   }

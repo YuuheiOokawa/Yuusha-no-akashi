@@ -550,6 +550,10 @@ function closeBattle() {
 function triggerEnding() {
   state.flags.storyEnded = true;
   const lines = [];
+  if (state.flags.loreStonesComplete) {
+    lines.push('石版に刻まれていた真実 ―― 賢者たちの堕落と、その果てに生まれた深淵。');
+    lines.push('その全てを知った上で、勇者はなお前へ進むことを選んだ。');
+  }
   if (state.flags.superbossDefeated) {
     lines.push('試練の塔に巣食っていた大魔導士ゼノンをも打ち倒し、');
     lines.push('勇者の名は伝説として語り継がれることとなった。');
@@ -567,8 +571,12 @@ function triggerEnding() {
   } else if (doneQuests.length > 0) {
     lines.push('道中で出会った人々の悩みにも、できる限り手を貸してきた。');
   }
-  if (state.player.companion === 'kain') {
-    lines.push('剣士カインは、これからも勇者と共に歩むと誓った。');
+  const recruited = state.player.recruitedCompanions || [];
+  if (recruited.includes('kain')) {
+    lines.push('剣士カインは兄との約束を果たし、これからも勇者と共に歩むと誓った。');
+  }
+  if (recruited.includes('lisa')) {
+    lines.push('旅の神官リサは、静かな祈りと共に勇者の新たな門出を見送った。');
   }
   state.endingExtraLines = lines;
   state.screen = 'ENDING';

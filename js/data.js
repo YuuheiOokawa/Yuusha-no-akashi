@@ -166,10 +166,22 @@ const field3Grid = buildMap(20, 16, TILES.GROUND);
 setBorder(field3Grid, TILES.TREE);
 setTiles(field3Grid, [[10, 0], [11, 0]], TILES.DOOR); // 北口 -> 古代遺跡
 setTiles(field3Grid, [[10, 15], [11, 15]], TILES.DOOR); // 南口 -> 鉱都ドルンガル
+setTiles(field3Grid, [[0, 7], [0, 8]], TILES.DOOR); // 西口 -> 静寂の泉(隠しエリア)
 setRect(field3Grid, 2, 2, 5, 5, TILES.TREE);
 setRect(field3Grid, 14, 2, 17, 5, TILES.TREE);
 setRect(field3Grid, 2, 10, 5, 13, TILES.TREE);
 setRect(field3Grid, 9, 7, 11, 9, TILES.WATER);
+
+// ============================================================
+// 静寂の泉 (霧隠れの荒野の西・探索エリア)
+// ============================================================
+const springGrid = buildMap(16, 12, TILES.GROUND);
+setBorder(springGrid, TILES.TREE);
+setTiles(springGrid, [[15, 7], [15, 8]], TILES.DOOR); // 東口 -> 霧隠れの荒野
+setRect(springGrid, 6, 4, 10, 7, TILES.WATER); // 泉
+setTiles(springGrid, [[5, 4], [11, 4], [5, 7], [11, 7]], TILES.FLOWER);
+setRect(springGrid, 2, 8, 4, 9, TILES.TREE);
+setRect(springGrid, 12, 2, 14, 3, TILES.TREE);
 
 // ============================================================
 // 鉱都ドルンガル
@@ -413,6 +425,15 @@ const MAPS = {
     startX: 10, startY: 1, startDir: 'down',
     bgColor: '#4a5a5a',
   },
+  spring: {
+    id: 'spring', name: '静寂の泉', grid: springGrid,
+    encounter: { rate: 0.05, table: [
+      { id: 'harpy', weight: 5 },
+      { id: 'fog_wolf', weight: 5 },
+    ] },
+    startX: 14, startY: 7, startDir: 'left',
+    bgColor: '#1a3a3a',
+  },
   town3: {
     id: 'town3', name: '鉱都ドルンガル', grid: town3Grid,
     encounter: null,
@@ -501,6 +522,10 @@ const WARPS = {
   'field3:11:0': { map: 'ruins', x: 11, y: 2, dir: 'down' },
   'field3:10:15': { map: 'town3', x: 8, y: 1, dir: 'down' },
   'field3:11:15': { map: 'town3', x: 9, y: 1, dir: 'down' },
+  'field3:0:7': { map: 'spring', x: 14, y: 7, dir: 'left' },
+  'field3:0:8': { map: 'spring', x: 14, y: 8, dir: 'left' },
+  'spring:15:7': { map: 'field3', x: 1, y: 7, dir: 'right' },
+  'spring:15:8': { map: 'field3', x: 1, y: 8, dir: 'right' },
   'town3:8:0': { map: 'field3', x: 10, y: 14, dir: 'up' },
   'town3:9:0': { map: 'field3', x: 11, y: 14, dir: 'up' },
   'town3:8:12': { map: 'dungeon3', x: 11, y: 16, dir: 'up' },
@@ -543,6 +568,7 @@ const WORLD_MAP_NODES = [
   { id: 'field2', name: '囁きの森', type: 'field', x: 260, y: 140 },
   { id: 'ruins', name: '古代遺跡', type: 'dungeon', x: 260, y: 200 },
   { id: 'field3', name: '霧隠れの荒野', type: 'field', x: 310, y: 240 },
+  { id: 'spring', name: '静寂の泉', type: 'field', x: 255, y: 280 },
   { id: 'town3', name: '鉱都ドルンガル', type: 'town', x: 370, y: 240 },
   { id: 'dungeon3', name: '氷結の祭壇', type: 'dungeon', x: 420, y: 270 },
   { id: 'field4', name: '嘆きの荒地', type: 'field', x: 420, y: 320 },
@@ -552,6 +578,7 @@ const WORLD_MAP_NODES = [
 const WORLD_MAP_EDGES = [
   ['town', 'field'], ['field', 'cape'], ['field', 'cave'], ['cave', 'tower'], ['tower', 'abyss'],
   ['field', 'town2'], ['town2', 'field2'], ['field2', 'ruins'], ['ruins', 'field3'],
+  ['field3', 'spring'],
   ['field3', 'town3'], ['town3', 'dungeon3'], ['dungeon3', 'field4'], ['field4', 'town4'],
   ['town4', 'dungeon4'], ['dungeon4', 'field'],
 ];
@@ -570,6 +597,7 @@ const CHESTS = [
   { id: 'chest_cape1', map: 'cape', x: 9, y: 8, item: null, gold: 60 },
   { id: 'chest_abyss1', map: 'abyss', x: 4, y: 7, item: 'ring_eternity', gold: 0 },
   { id: 'chest_field3_1', map: 'field3', x: 16, y: 12, item: null, gold: 70 },
+  { id: 'chest_spring1', map: 'spring', x: 13, y: 9, item: 'item_hi_herb', gold: 0 },
   { id: 'chest_dungeon3_1', map: 'dungeon3', x: 5, y: 11, item: null, gold: 90 },
   { id: 'chest_dungeon3_2', map: 'dungeon3', x: 16, y: 7, item: null, gold: 0, mimic: true },
   { id: 'chest_field4_1', map: 'field4', x: 16, y: 12, item: null, gold: 90 },
@@ -853,8 +881,17 @@ const NPCS = [
   },
   {
     id: 'cloakedWanderer', map: 'cape', x: 8, y: 5, glyph: '？', color: '#6a5a8a',
-    hidden(state) { return state.flags.loreStonesComplete; },
+    // 石版を集め終えると深淵の回廊へ向かい、深淵の主を倒すまでこの岬には戻らない
+    hidden(state) { return state.flags.loreStonesComplete && !state.flags.voidDefeated; },
     lines(state) {
+      if (state.flags.voidDefeated) {
+        return [
+          '(旅人が、憑き物が落ちたような穏やかな顔でこちらを見ている)',
+          '……ありがとう。おかげで、皆ようやく安らかに眠れる。',
+          '私はもう少しだけ、この光景を見ていたい。',
+          'どうか、この景色を――そしてあなたの旅を、忘れないでいてくれ。',
+        ];
+      }
       if (state.flags.loreStonesStarted) {
         return [
           '……古い石版を探しているようだな。',
@@ -872,8 +909,84 @@ const NPCS = [
     },
   },
   {
+    id: 'cloakedWandererAbyss', map: 'abyss', x: 5, y: 7, glyph: '？', color: '#6a5a8a',
+    // 石版をすべて読み解いた後、深淵の主を倒すまでの間だけ現れる
+    hidden(state) { return !state.flags.loreStonesComplete || state.flags.voidDefeated; },
+    lines(state) {
+      return [
+        '(石版の傍らに、あの岬にいた旅人が佇んでいる)',
+        '……すべてを知ってしまったのだな。',
+        '私もまた、竜を封じたあの日、道を違えた一人だ。',
+        '闇に堕ちることも、戦い続けることもできず、ただここに留まり続けている。',
+        'どうか、私の同胞たちを――安らかに眠らせてやってはくれないか。',
+      ];
+    },
+  },
+  {
     id: 'wandererField3', map: 'field3', x: 5, y: 8, glyph: '旅', color: '#c0c0c0',
-    lines() { return ['この霧の先に、鉱都ドルンガルがあるはずだ。', '氷の魔物に気をつけて進むといい。']; },
+    lines() {
+      return [
+        'この霧の先に、鉱都ドルンガルがあるはずだ。',
+        '氷の魔物に気をつけて進むといい。',
+        'そういえば、西の方に小さな泉があるらしい。隠者が住んでいるとか。',
+      ];
+    },
+  },
+  {
+    id: 'hermit', map: 'spring', x: 3, y: 5, glyph: '仙', color: '#8ac06a',
+    lines(state) {
+      if (state.flags.hermitQuestDone) {
+        return ['おかげで泉もすっかり静かになった。ありがとう、旅の者よ。'];
+      }
+      const found = Object.keys(state.flags.spritesFound || {}).length;
+      if (state.flags.hermitQuestActive && found >= 3) {
+        state.flags.hermitQuestDone = true;
+        addOwnedEquipment(state.player, 'charm_sprite');
+        return [
+          'おお、三つの光を全て集めてくれたのじゃな！',
+          'この泉の守り手として、お礼をしよう。',
+          '(「妖精の加護」を手に入れた！)',
+          ...addReputation(10),
+          ...checkAchievements(),
+        ];
+      }
+      if (state.flags.hermitQuestActive) {
+        return [`まだ光る子たちが隠れておるようじゃ……(見つけた数: ${found}/3)`, '泉のまわりをよく探してみるとよい。'];
+      }
+      state.flags.hermitQuestActive = true;
+      return [
+        'ここは静寂の泉。ワシはここを守る隠者じゃ。',
+        '先日の嵐で、泉に棲む光の妖精たちが驚いて散り散りになってしまってのう。',
+        '三つの光を見つけて、ここへ連れ戻してはくれぬか。',
+      ];
+    },
+  },
+  {
+    id: 'sprite1', map: 'spring', x: 2, y: 2, glyph: '光', color: '#f5e05a',
+    hidden(state) { return !!(state.flags.spritesFound && state.flags.spritesFound.sprite1); },
+    lines(state) {
+      state.flags.spritesFound = state.flags.spritesFound || {};
+      state.flags.spritesFound.sprite1 = true;
+      return ['(小さな光が、嬉しそうに瞬いた)', '光の妖精を一匹、見つけた！'];
+    },
+  },
+  {
+    id: 'sprite2', map: 'spring', x: 13, y: 5, glyph: '光', color: '#f5e05a',
+    hidden(state) { return !!(state.flags.spritesFound && state.flags.spritesFound.sprite2); },
+    lines(state) {
+      state.flags.spritesFound = state.flags.spritesFound || {};
+      state.flags.spritesFound.sprite2 = true;
+      return ['(小さな光が、嬉しそうに瞬いた)', '光の妖精を一匹、見つけた！'];
+    },
+  },
+  {
+    id: 'sprite3', map: 'spring', x: 8, y: 9, glyph: '光', color: '#f5e05a',
+    hidden(state) { return !!(state.flags.spritesFound && state.flags.spritesFound.sprite3); },
+    lines(state) {
+      state.flags.spritesFound = state.flags.spritesFound || {};
+      state.flags.spritesFound.sprite3 = true;
+      return ['(小さな光が、嬉しそうに瞬いた)', '光の妖精を一匹、見つけた！'];
+    },
   },
   {
     id: 'guildmaster', map: 'town3', x: 9, y: 3, glyph: '長', color: '#e0c26b',
@@ -1112,6 +1225,7 @@ const SIDE_QUESTS = [
   { id: 'kainSword', name: '旅の剣士の剣', activeFlag: 'kainQuestActive', doneFlag: 'kainQuestDone' },
   { id: 'loreStones', name: '古代の石版', activeFlag: 'loreStonesStarted', doneFlag: 'loreStonesComplete' },
   { id: 'lisaHelp', name: '旅の神官リサ', activeFlag: 'lisaQuestActive', doneFlag: 'lisaQuestDone' },
+  { id: 'sprites', name: '妖精の光', activeFlag: 'hermitQuestActive', doneFlag: 'hermitQuestDone' },
 ];
 
 // ============================================================
@@ -1256,6 +1370,10 @@ const MAP_FIRST_VISIT_HINTS = {
     'ここが霧隠れの荒野か……',
     '南に町の灯りが見える。鉱都ドルンガルを目指そう。',
   ],
+  spring: [
+    '霧が晴れると、静かな泉が広がっていた。',
+    '誰か住んでいるのだろうか……',
+  ],
   town3: [
     'ここが鉱都ドルンガルか。',
     '長の話を聞いてみよう。',
@@ -1358,6 +1476,7 @@ const EQUIPMENT = {
   medal_ascended: { id: 'medal_ascended', name: '継承の証', type: 'accessory', atk: 8, def: 8, price: 0 },
   crown_true_hero: { id: 'crown_true_hero', name: '勇者の証', type: 'accessory', atk: 20, def: 20, price: 0 },
   medal_cartographer: { id: 'medal_cartographer', name: '踏破の証', type: 'accessory', atk: 6, def: 6, price: 0 },
+  charm_sprite: { id: 'charm_sprite', name: '妖精の加護', type: 'accessory', atk: 6, def: 6, price: 0 },
 };
 
 // ============================================================

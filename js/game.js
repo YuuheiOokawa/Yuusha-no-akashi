@@ -26,6 +26,7 @@ const state = {
     lisaQuestActive: false, lisaQuestDone: false, lisaTalkCount: 0,
     bestiaryRewardGiven: false,
     loreStonesStarted: false, loreStonesComplete: false, loreStones: {},
+    hermitQuestActive: false, hermitQuestDone: false, spritesFound: {},
     townReputation: 0, reputationRankSeen: 0, grottoClearsCounted: 0,
     arenaBestWave: 0, achievementsSeen: {},
     killCounts: {}, bestiary: {}, visitedMaps: {},
@@ -383,6 +384,8 @@ function endBattleVictory() {
       state.flags.hasHolySword = true;
       addOwnedEquipment(p, 'sword_holy');
       pushLog(b, '古の聖剣「光の剣」を手に入れた！');
+      pushLog(b, '番人が崩れ落ちる瞬間、かすかな声が聞こえた気がした……');
+      pushLog(b, '「どうか、扉の先で待つ者たちを、赦してあげてください」');
       addReputation(15).forEach((l) => pushLog(b, l));
     } else if (b.scripted === 'superboss') {
       state.flags.superbossDefeated = true;
@@ -396,14 +399,19 @@ function endBattleVictory() {
       state.flags.voidDefeated = true;
       addOwnedEquipment(p, 'sword_absolute');
       pushLog(b, '終焉の剣を手に入れた！');
+      if (state.player.companion === 'lisa') {
+        pushLog(b, 'リサが静かに祈りを捧げた……「どうか、安らかに」');
+      }
     } else if (b.scripted === 'iceguardian') {
       state.flags.iceSealObtained = true;
       addOwnedEquipment(p, 'talisman_frost');
       pushLog(b, '氷の護符を手に入れた！');
+      pushLog(b, '守護者が砕け散る瞬間、悲しげな旋律が聞こえた気がした……遠い昔を懐かしむように。');
     } else if (b.scripted === 'fallenknight') {
       state.flags.sealBroken = true;
       addOwnedEquipment(p, 'emblem_argus');
       pushLog(b, '堕天騎士の紋章を手に入れた！');
+      pushLog(b, 'アルガスの鎧が崩れ落ちる。その下にあったのは、朽ち果てた聖印だった。');
     } else if (b.scripted && b.scripted.startsWith('grotto_boss') && state.flags.grottoClearsCounted < 5) {
       state.flags.grottoClearsCounted += 1;
       addReputation(5).forEach((l) => pushLog(b, l));
